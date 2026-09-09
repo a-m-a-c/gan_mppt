@@ -30,12 +30,11 @@ _deps/
 .mxproject.bak
 
 # IDE - VS Code (keep shared config, ignore user-local overrides)
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.vscode/*.log
+# .vscode/*
+# !.vscode/tasks.json
+# !.vscode/launch.json
+# !.vscode/extensions.json
+# .vscode/*.log
 
 # Other common IDEs
 .idea/
