@@ -1,3 +1,11 @@
+# Local AI assistant guidance and configuration
+.agents/
+.codex/
+.claude/
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+
 # Build output (CMake / Ninja)
 build/
 build-*/
@@ -48,9 +56,23 @@ desktop.ini
 # Python bytecode (tools/)
 __pycache__/
 *.pyc
+.venv/
+.uv-cache/
 
 # Bench capture output (tools/plotter.py, tools/gui)
 captures/
 stream_plot.csv
 stream_plot.svg
 stream_iv.svg
+
+# Altium local history and generated files
+/hardware/**/__Previews/
+/hardware/**/History/
+/hardware/**/Project Logs*/
+/hardware/**/Project Outputs*/
+/hardware/**/*.PcbDoc.htm
+/hardware/**/*.ldb
+/hardware/**/*.metadata
+/hardware/**/*.PrjPcbStructure
+/hardware/**/*.PrjMbdStructure
+/hardware/**/CompareHistory/

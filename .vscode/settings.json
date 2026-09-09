@@ -21,6 +21,7 @@
   // (cmake/gcc-arm-none-eabi.cmake) finds "arm-none-eabi-gcc" via PATH.
   "cmake.cmakePath": "C:/ST/STM32CubeCLT_1.22.0/CMake/bin/cmake.exe",
   "cmake.useCMakePresets": "always",
+  "cmake.sourceDirectory": "${workspaceFolder}/firmware",
   "cmake.configureEnvironment": {
     "PATH": "C:\\ST\\STM32CubeCLT_1.22.0\\CMake\\bin;C:\\ST\\STM32CubeCLT_1.22.0\\Ninja\\bin;C:\\ST\\STM32CubeCLT_1.22.0\\GNU-tools-for-STM32\\bin;${env:PATH}"
   },
@@ -30,7 +31,7 @@
 
   // Point IntelliSense at the compile_commands.json CMake generates
   // (CMAKE_EXPORT_COMPILE_COMMANDS is already ON in the CubeMX CMakeLists).
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/Debug/compile_commands.json",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/firmware/build/Debug/compile_commands.json",
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#2a7f59",
     "activityBar.background": "#2a7f59",

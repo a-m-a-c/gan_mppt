@@ -1,0 +1,12 @@
+[project]
+name = "gan-mppt-tools"
+version = "0.1.0"
+description = "Host tools for the GaN MPPT controller"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "matplotlib>=3.8",
+    "pyserial>=3.5",
+    "uvicorn>=0.30",
+    "websockets>=12",
+]

@@ -20,7 +20,7 @@
       "command": "\"C:/ST/STM32CubeCLT_1.22.0/STM32CubeProgrammer/bin/STM32_Programmer_CLI.exe\"",
       "args": [
         "-c", "port=SWD",
-        "-w", "${workspaceFolder}/build/Debug/gan_mppt_firmware.elf",
+        "-w", "${workspaceFolder}/firmware/build/Debug/gan_mppt_firmware.elf",
         "-v",
         "-rst"
       ],

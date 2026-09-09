@@ -3,7 +3,7 @@
 # requires-python = ">=3.9"
 # dependencies = []
 # ///
-"""Generate Inc/drivers/ntc_table.h from Murata's characteristic CSV."""
+"""Generate firmware/Inc/drivers/ntc_table.h from Murata's characteristic CSV."""
 
 import argparse
 import csv
@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 CSV_PATH = REPO / ".agents" / "NCU18XH103F6SRB.csv"
-OUT_PATH = REPO / "Inc" / "drivers" / "ntc_table.h"
+OUT_PATH = REPO / "firmware" / "Inc" / "drivers" / "ntc_table.h"
 
 # Murata CSV reference divider; --pullup specifies the board's divider.
 REF_PULLUP_OHMS = 10000.0
