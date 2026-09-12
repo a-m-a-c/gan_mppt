@@ -11,6 +11,7 @@
 #include "main.h"
 #include "analog.h"
 #include "check.h"
+#include "fault.h"
 #include "status.h"
 #include "channel_telem.h"
 #include "mode.h"
@@ -43,23 +44,11 @@ void app_setup(void) {
 
 static system_state_t prev_state = SYSTEM_STATE_INIT;
 
-static void app_fault_service(void) {
-  if (sys.state == SYSTEM_STATE_RESET) return;
-
-  if (pwm_faults_present()) {
-    sys.state = SYSTEM_STATE_FAULTED;
-  }
-  if (sys.state == SYSTEM_STATE_FAULTED && prev_state != SYSTEM_STATE_FAULTED) {
-    pwm_stop_all();
-    sys.mode = MODE_NONE;
-  }
-}
-
 void app_loop(void) {
   serial_service();
   command_service();
   if (system_command_received(SYSTEM_COMMAND_RESET)) sys.state = SYSTEM_STATE_RESET;
-  app_fault_service();
+  fault_service(prev_state);
 
   const bool entered = (sys.state != prev_state);
   prev_state = sys.state;
@@ -148,7 +137,7 @@ void app_loop(void) {
     }
   }
 
-  app_fault_service();
+  fault_service(prev_state);
 
   analog_service();
   status_service();
