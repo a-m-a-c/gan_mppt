@@ -55,7 +55,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/drivers/channel_telem.c
     Src/app/app.c
     Src/app/check.c
-    Src/app/fault.c
     Src/app/status.c
     Src/app/modes/mode.c
     Src/app/command.c

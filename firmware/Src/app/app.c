@@ -11,7 +11,6 @@
 #include "main.h"
 #include "analog.h"
 #include "check.h"
-#include "fault.h"
 #include "status.h"
 #include "channel_telem.h"
 #include "mode.h"
@@ -45,20 +44,25 @@ void app_setup(void) {
 static system_state_t prev_state = SYSTEM_STATE_INIT;
 
 void app_loop(void) {
+  if (pwm_faults_present()) {
+    sys.state = SYSTEM_STATE_FAULTED;
+  }
+
   serial_service();
   command_service();
   if (system_command_received(SYSTEM_COMMAND_RESET)) sys.state = SYSTEM_STATE_RESET;
-  fault_service(prev_state);
 
   const bool entered = (sys.state != prev_state);
   prev_state = sys.state;
 
   switch (sys.state) {
+    /* -------------------- INIT STATE --------------------*/
     case SYSTEM_STATE_INIT: {
       sys.state = SYSTEM_STATE_CHECK;
       break;
     }
 
+    /* -------------------- CHECK STATE --------------------*/
     case SYSTEM_STATE_CHECK: {
       if (entered) check_begin();
 
@@ -77,6 +81,7 @@ void app_loop(void) {
       break;
     }
 
+    /* -------------------- STANDBY STATE --------------------*/
     case SYSTEM_STATE_STANDBY: {
       if (entered) pwm_stop_all();
 
@@ -86,6 +91,7 @@ void app_loop(void) {
       break;
     }
 
+    /* -------------------- ACTIVE STATE --------------------*/
     case SYSTEM_STATE_ACTIVE: {
       if (entered) {
         mode_request_result_t init_result = mode_begin(sys.mode);
@@ -120,13 +126,17 @@ void app_loop(void) {
       break;
     }
 
+    /* -------------------- FAULTED STATE --------------------*/
     case SYSTEM_STATE_FAULTED: {
+      if (entered) pwm_stop_all();
+
       if (system_command_received(SYSTEM_COMMAND_CLEAR_FAULT) && pwm_clear_faults()) {
         sys.state = SYSTEM_STATE_CHECK;
       }
       break;
     }
 
+    /* -------------------- RESET STATE --------------------*/
     case SYSTEM_STATE_RESET: {
       if (entered) {
         pwm_stop_all();
@@ -136,8 +146,6 @@ void app_loop(void) {
       break;
     }
   }
-
-  fault_service(prev_state);
 
   analog_service();
   status_service();
