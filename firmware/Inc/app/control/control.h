@@ -21,6 +21,8 @@ typedef struct {
 
 void control_init(control_config_t *config);
 
+void control_start(void);
+
 void control_service(void);
 
 void control_set_duty(uint32_t channel, uint16_t duty_cycle);

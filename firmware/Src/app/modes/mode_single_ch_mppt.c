@@ -2,11 +2,18 @@
 #include "main.h"
 #include "system.h"
 #include "channel.h"
-#include "pwm.h"
+#include "control.h"
 #include "pi.h"
 #include "perturb_observe.h"
 #include <math.h>
 #include <stdint.h>
+
+static control_config_t control_cfg = {
+  .ramp_limit_enabled = true,
+  .channel_a_enabled = true,
+  // Lowest integer rate: 1 unit/ms versus the old nominal 20 units/40 ms.
+  .ramp_rate_per_ms = 1,
+};
 
 #define PO_PERIOD_MS 100U
 #define PO_STEP_MV   100U
@@ -14,7 +21,6 @@
 #define KI 0.4f
 #define MAX_DUTY_CYCLE 700
 #define MIN_DUTY_CYCLE 0
-#define DUTY_SLEW_PER_STEP 20U
 
 #define PO_ARRIVED_MV 30U
 
@@ -26,7 +32,7 @@
 #define IIN_IDLE_MAX_A 1.0f
 
 // Bench-only 30 V ceiling; the battery bus runs at 32.5-54.6 V.
-#define MAX_OUTPUT_MV 30000U
+#define MAX_OUTPUT_MV 14600U
 
 #define PO_SEED_FRACTION 0.8f
 
@@ -47,7 +53,7 @@ static uint32_t abs_diff(uint32_t a, uint32_t b) {
 }
 
 static mode_state_t finish(mode_state_t state) {
-  pwm_stop(CHANNEL_A);
+  control_stop();
   return state;
 }
 
@@ -71,7 +77,9 @@ mode_request_result_t mode_single_ch_mppt_begin(void) {
 
   pi_init(&vin_pi, KP, KI, (float)MIN_DUTY_CYCLE, (float)MAX_DUTY_CYCLE);
 
-  if (!pwm_start(CHANNEL_A)) return MODE_INIT_REFUSED;
+  control_init(&control_cfg);
+  control_start();
+  if (channel_a.pwm.op_state != PWM_STATE_RUNNING) return MODE_INIT_REFUSED;
 
   return MODE_INIT_OK;
 }
@@ -117,26 +125,14 @@ mode_state_t mode_single_ch_mppt_service(bool stopping) {
       dt_ms = DT_MAX_MS;
     }
 
+    pi_track(&vin_pi, (float)channel_a.pwm.duty_applied);
     // Invert PI error: boost input voltage falls as duty rises.
     uint16_t duty = (uint16_t)pi_update(&vin_pi, channel_a.telem.vin_v * 1000.0f,
                                         vin_po.target, (float)dt_ms);
 
-    const uint16_t applied = channel_a.pwm.duty_applied;
-    uint16_t slew_down = 0U;
-
-    if (applied > DUTY_SLEW_PER_STEP) {
-      slew_down = applied - DUTY_SLEW_PER_STEP;
-    }
-
-    if (duty > (applied + DUTY_SLEW_PER_STEP)) {
-      duty = (uint16_t)(applied + DUTY_SLEW_PER_STEP);
-    } else if (duty < slew_down) {
-      duty = slew_down;
-    }
-
-    (void)pwm_set_duty_cycle(CHANNEL_A, duty);
-    pi_track(&vin_pi, (float)channel_a.pwm.duty_applied);
+    control_set_duty(CHANNEL_A, duty);
   }
 
+  control_service();
   return MODE_STATE_RUNNING;
 }
