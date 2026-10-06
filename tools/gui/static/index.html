@@ -20,6 +20,7 @@
   <span id="stats" class="stats"></span>
 </header>
 
+<div class="readouts-head"><button id="readouts-toggle" aria-controls="readouts" aria-expanded="true">Hide live values</button></div>
 <div id="readouts" class="readouts"></div>
 
 <nav id="tabs" class="tabs"></nav>
@@ -29,10 +30,11 @@
   <section class="pane iv-card">
     <div class="pane-head">
       <h2 class="label">V&#8211;I plane</h2>
-      <select id="iv-channel" title="channel"></select>
       <span class="spacer"></span>
+      <button id="iv-pause" aria-pressed="false">Pause</button>
       <button id="iv-clear">clear</button>
     </div>
+    <div id="iv-channels" class="panel-toggles" role="group" aria-label="V-I channels"></div>
     <div class="canvas-wrap"><canvas id="iv"></canvas></div>
     <div class="controls" id="iv-controls">
       <label>persist <input id="persist" type="number" min="1" max="600" step="1" value="60"> s</label>
@@ -53,14 +55,25 @@
     </div>
   </section>
 
-  <section class="pane series-card">
+  <section id="series-card" class="pane series-card">
     <div class="pane-head">
       <h2 class="label">Time series</h2>
       <label class="field">window <input id="window" type="number" min="2" max="600" step="1" value="30"> s</label>
       <span class="spacer"></span>
-      <button id="series-clear">clear</button>
+      <button id="series-pause" aria-pressed="false">Pause</button>
+      <button id="add-plot">Add plot</button>
+      <button id="series-clear">clear data</button>
     </div>
-    <div id="panel-toggles" class="panel-toggles"></div>
+    <details class="signal-library" open>
+      <summary>Signals &#8212; drag onto any plot</summary>
+      <div class="signal-controls">
+        <input id="signal-search" type="search" placeholder="Filter signals" aria-label="Filter signals">
+        <label>Add to <select id="plot-target" aria-label="Target plot"></select></label>
+      </div>
+      <div id="signal-picker" class="signal-picker"></div>
+    </details>
+    <div id="plot-tabs" class="plot-tabs" role="tablist" aria-label="Time-series plots"></div>
+    <div id="plots-empty" class="panels-empty">No plots. Use Add plot to create one.</div>
     <div id="panels" class="panels"></div>
   </section>
 

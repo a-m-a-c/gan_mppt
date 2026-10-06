@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/system.c
     Src/drivers/pwm.c
     Src/drivers/led.c
+    Src/drivers/diode_bypass.c
     Src/drivers/analog.c
     Src/drivers/interrupts.c
     Src/drivers/ina228.c
@@ -59,9 +60,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/modes/mode.c
     Src/app/command.c
     Src/app/stream.c
-    Src/app/modes/mode_mppt.c
+    Src/app/modes/mode_auto.c
     Src/app/modes/mode_single_ch_mppt.c
-    Src/app/modes/mode_single_ch_cv.c
+    Src/app/modes/mode_single_ch_5_mppt.c
+    Src/app/modes/mode_dual_ch_mppt.c
     Src/app/modes/mode_single_ch_iv_sweep.c
     Src/drivers/serial.c
     Src/app/control/control.c

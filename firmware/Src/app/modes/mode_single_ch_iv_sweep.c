@@ -37,7 +37,7 @@ mode_request_result_t mode_single_ch_iv_sweep_begin(void) {
   cycles_done = 0;
   descending = false;
 
-  if (!pwm_start(CHANNEL_A)) return MODE_INIT_REFUSED;
+  if (!pwm_start(CHANNEL_A, PWM_DEFAULT_DUTY_CYCLE)) return MODE_INIT_REFUSED;
 
   return MODE_INIT_OK;
 }

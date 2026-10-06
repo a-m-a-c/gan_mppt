@@ -291,7 +291,7 @@ void pwm_set_dead_time(uint32_t channel, uint16_t dead_time) {
   ch->pwm.dead_time_ns = dead_time;
 
   if (restart) {
-    (void)pwm_start(channel);
+    (void)pwm_start(channel, PWM_DEFAULT_DUTY_CYCLE);
   }
 }
 
@@ -329,11 +329,11 @@ void pwm_set_frequency(uint32_t channel, uint32_t frequency) {
   ch->pwm.frequency_hz = frequency;
 
   if (restart) {
-    (void)pwm_start(channel);
+    (void)pwm_start(channel, PWM_DEFAULT_DUTY_CYCLE);
   }
 }
 
-bool pwm_start(uint32_t channel) {
+bool pwm_start(uint32_t channel, uint16_t duty_cycle) {
   const channel_hw_t *hw = channel_hw(channel);
   uint32_t primask = enter_critical();
 
@@ -345,7 +345,10 @@ bool pwm_start(uint32_t channel) {
     exit_critical(primask);
     return false;
   }
-  pwm_set_duty_cycle(channel, PWM_DEFAULT_DUTY_CYCLE);
+  if (!pwm_set_duty_cycle(channel, duty_cycle)) {
+    exit_critical(primask);
+    return false;
+  }
   // Transfer preloads before enabling outputs so the first pulse uses the new duty.
   SET_BIT(hhrtim.Instance->sCommonRegs.CR2, hw->timer_update);
   SET_BIT(hhrtim.Instance->sMasterRegs.MCR, hw->timer_id);

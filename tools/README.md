@@ -16,6 +16,12 @@ uv run --project tools --locked python tools/iv_curve.py <csv>
 The GUI prints its local URL. Select a serial port and connect when the board
 is ready. Captures are saved under the repository's ignored `captures/` folder.
 
+Use the channel toggles above the V-I plane to overlay multiple channels.
+Each channel has its own colour, trail and best-power marker. The V-I plane
+and time-series plots have separate Pause buttons. Pausing freezes the view
+for inspection while live values and captures continue; Resume returns to
+the current live data.
+
 To replay an existing capture without connecting to hardware:
 
 ```powershell

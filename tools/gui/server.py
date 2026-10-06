@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import sys
 import threading
 import webbrowser
@@ -23,7 +24,7 @@ from collections import deque
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 HERE = Path(__file__).resolve().parent
@@ -38,7 +39,7 @@ import schema  # noqa: E402
 STATIC_DIR = HERE / "static"
 
 
-TIMESERIES_DECIMATE = 20
+TIMESERIES_DECIMATE = 4
 
 
 PUMP_HZ = 25
@@ -49,7 +50,8 @@ class LiveState:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.derived = schema.active_derived()
-        self.latest: dict[str, float] = {}
+        self.assembler = console.StreamSet()
+        self.latest: dict[str, float | None] = {}
         self.ts: deque[tuple[float, dict]] = deque(maxlen=MAX_BATCH)
         self.iv: dict[str, deque] = {ch: deque(maxlen=MAX_BATCH)
                                      for ch in schema.IV_PAIRS}
@@ -58,23 +60,21 @@ class LiveState:
         self.dropped = 0
         self.now = 0.0
 
-    def feed(self, name: str, value: int, t: float) -> None:
+    def feed(self, name: str, value: int | None, t: float) -> None:
         with self.lock:
-            self.latest[name] = value
-            self.now = t
-            if name != console.STREAM_LAST:
+            snapshot = self.assembler.feed(name, value)
+            if snapshot is None:
+                if name == console.STREAM_LAST:
+                    self.dropped += 1
                 return
+            self.latest = snapshot
+            self.now = t
             self.sets += 1
-
             for der in self.derived:
                 values = [self.latest.get(k) for k in der.inputs]
-                if None in values:
-                    continue
-                self.latest[der.key] = schema.EXPRESSIONS[der.expr](*values)
-
-            if not (self.latest.get("flags", 0) & 0x01):
-                self.dropped += 1
-                return
+                self.latest[der.key] = None
+                if None not in values:
+                    self.latest[der.key] = schema.EXPRESSIONS[der.expr](*values)
 
             if self.sets % TIMESERIES_DECIMATE == 0:
                 self.ts.append((t, dict(self.latest)))
@@ -109,6 +109,7 @@ class LiveState:
 
     def reset(self) -> None:
         with self.lock:
+            self.assembler = console.StreamSet()
             self.latest.clear()
             self.ts.clear()
             for points in self.iv.values():
@@ -116,6 +117,7 @@ class LiveState:
             self.last_point.clear()
             self.sets = 0
             self.dropped = 0
+            self.now = 0.0
 
     def counters(self) -> dict:
         with self.lock:
@@ -202,7 +204,6 @@ class Hub:
 
         recorder = capture.Recorder()
         self.recorder = recorder
-        self.link.subscribe(recorder.feed)
         self.run_state = {"state": "running", "name": seq.name, "label": seq.label,
                           "length": seq.length, "started": self.link.clock(),
                           "summary": [], "files": {}}
@@ -210,6 +211,7 @@ class Hub:
         self.run = capture.SequenceRun(seq, self.send, recorder, self.link.clock,
                                        on_event=lambda kind, arg:
                                        self._on_sequence(seq, recorder, kind, arg))
+        self.link.subscribe(recorder.feed)
         self.run.start()
 
     def cancel_sequence(self) -> None:
@@ -256,6 +258,14 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.middleware("http")
+async def prevent_gui_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 async def broadcast(message: dict) -> None:
     for socket in list(hub.sockets):
         try:
@@ -284,8 +294,12 @@ async def pump_loop() -> None:
 
 
 @app.get("/")
-async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+async def index() -> HTMLResponse:
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    for name in ("style.css", "plots.js", "app.js"):
+        version = hashlib.sha256((STATIC_DIR / name).read_bytes()).hexdigest()[:16]
+        html = html.replace(f'"/static/{name}"', f'"/static/{name}?v={version}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/ports")

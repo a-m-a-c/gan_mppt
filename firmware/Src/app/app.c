@@ -17,6 +17,7 @@
 #include "command.h"
 #include "stream.h"
 #include "serial.h"
+#include "diode_bypass.h"
 
 volatile bool error_flag = false;
 
@@ -50,6 +51,8 @@ void app_loop(void) {
 
   serial_service();
   command_service();
+  if (system_command_received(SYSTEM_COMMAND_BYPASS_ON)) enable_bypass(true);
+  if (system_command_received(SYSTEM_COMMAND_BYPASS_OFF)) enable_bypass(false);
   if (system_command_received(SYSTEM_COMMAND_RESET)) sys.state = SYSTEM_STATE_RESET;
 
   const bool entered = (sys.state != prev_state);

@@ -49,7 +49,7 @@ class BaseLink:
             if fn in self._subscribers:
                 self._subscribers.remove(fn)
 
-    def _dispatch(self, name: str, value: int, t: float) -> None:
+    def _dispatch(self, name: str, value: int | None, t: float) -> None:
         with self._lock:
             subscribers = list(self._subscribers)
         for fn in subscribers:
@@ -158,7 +158,7 @@ class ReplayLink(BaseLink):
     kind = "replay"
 
 
-    ORDER = ("vbus_mv", "duty", "vin_mv", "iin_ma", "vin_target_mv", "flags")
+    ORDER = console.STREAM_NAMES
 
     def __init__(self, path: Path, speed: float = 1.0, loop: bool = False) -> None:
         super().__init__()
@@ -206,9 +206,11 @@ class ReplayLink(BaseLink):
                 now = time.monotonic() - self._t0
                 for name in self.ORDER:
                     value = raw.get(name)
+                    parsed = None
                     if value not in ("", None):
-                        self.sent += 1
-                        self._dispatch(name, int(value), now)
+                        parsed = int(value)
+                    self.sent += 1
+                    self._dispatch(name, parsed, now)
             if not self.loop:
                 self._running = False
                 return

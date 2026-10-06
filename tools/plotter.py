@@ -18,7 +18,7 @@ import console                                    # noqa: E402
 import capture                                    # noqa: E402
 from link import LinkError, SerialLink            # noqa: E402
 
-MODES = ("cv", "mppt", "chmppt", "ivsweep")
+MODES = ("auto", "chmppt", "ch5mppt", "dualmppt", "ivsweep")
 
 
 def ad_hoc(mode: str, start: float, end: float, length: float,
@@ -38,7 +38,7 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sequence", help="run a predefined sequence instead of --mode")
     ap.add_argument("--list", action="store_true", help="list predefined sequences")
-    ap.add_argument("--mode", choices=MODES, default="cv", help="mode command to start")
+    ap.add_argument("--mode", choices=MODES, default="auto", help="mode command to start")
     ap.add_argument("--start", type=float, default=2.0, help="seconds until the mode command")
     ap.add_argument("--end", type=float, default=5.0, help="seconds until STOP")
     ap.add_argument("--plot_start", type=float, default=0.0,
@@ -81,14 +81,15 @@ def main() -> int:
         return 1
 
     recorder = capture.Recorder()
-    link.subscribe(recorder.feed)
 
     def send(verb: str) -> None:
         frame = link.send(verb)
         print(f"  {link.clock():6.3f} s  sent {verb:10s} {frame.hex(' ')}")
 
     print(f"capturing {seq.length:g} s on {port} at {console.BAUD}")
-    run = capture.SequenceRun(seq, send, recorder, link.clock).start()
+    run = capture.SequenceRun(seq, send, recorder, link.clock)
+    link.subscribe(recorder.feed)
+    run.start()
     try:
         while not run.finished.wait(0.25):
             pass

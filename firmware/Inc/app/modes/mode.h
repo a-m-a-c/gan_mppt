@@ -5,9 +5,10 @@
 typedef enum {
   MODE_NONE,
   MODE_SINGLE_CH_MPPT,
-  MODE_SINGLE_CH_CV,
   MODE_SINGLE_CH_IV_SWEEP,
-  MODE_MPPT
+  MODE_AUTO,
+  MODE_DUAL_CH_MPPT,
+  MODE_SINGLE_CH_5_MPPT
 } mode_t;
 
 typedef enum {

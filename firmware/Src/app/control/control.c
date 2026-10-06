@@ -18,6 +18,21 @@ static void reset_requests(void) {
   last_duty_update_ms = HAL_GetTick();
 }
 
+static uint16_t calculate_starting_duty(channel_t *channel) {
+  float vin = channel->telem.vin_v;
+  float vout = channel->telem.vout_v;
+  // Check if DC bus is energised.
+  if (vout < 2.0f) {
+    // Okay to start at zero, less then 2 volts probably indicates DC bus is not energized.
+    return 0;
+  }
+  // Otherwise, use ideal duty cycle D = 1 - Vin/vout.
+  float duty = 1.0f - (vin / vout);
+  if (duty < 0.0f) duty = 0.0f;
+  if (duty > 1.0f) duty = 1.0f;
+  return (uint16_t)(duty * PWM_DUTY_SCALE);
+}
+
 void control_init(control_config_t *config) {
   control_config = config;
   reset_requests();
@@ -32,8 +47,11 @@ void control_init(control_config_t *config) {
 void control_start(void) {
   if (!control_config) return;
   reset_requests();
+  // Determine starting duty cycle.
   for (uint32_t i = 0; i < CHANNEL_COUNT; i++) {
-    if (*channel_enabled[i] && !pwm_start(i)) {
+    if (!*channel_enabled[i]) continue;
+    requested_duty[i] = calculate_starting_duty(channel_by_id(i));
+    if (!pwm_start(i, requested_duty[i])) {
       control_stop();
       return;
     }

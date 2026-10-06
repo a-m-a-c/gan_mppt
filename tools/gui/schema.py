@@ -10,8 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import console  # noqa: E402
 
 
-VIN_C, IIN_C, PIN_C, VBUS_C, DUTY_C, FLAG_C, TARGET_C = (
-    "#ff7f0e", "#9467bd", "#2ca02c", "#1f77b4", "#d62728", "#9aa4b2", "#8c564b")
+VBUS_C = "#1f77b4"
 FALLBACK_C = ("#17becf", "#bcbd22", "#e377c2", "#8c564b", "#7f7f7f")
 
 
@@ -30,14 +29,16 @@ class Field:
 
 FIELD_INFO: dict[str, Field] = {
     "vbus_mv": Field("vbus", "V", 1000.0, VBUS_C, "volts", None, digits=2),
-    "vin_mv": Field("vin", "V", 1000.0, VIN_C, "volts", "a"),
-    "iin_ma": Field("iin", "A", 1000.0, IIN_C, "current", "a"),
-    "vin_target_mv": Field("vin target", "V", 1000.0, TARGET_C, "volts", "a",
-                           step=True),
-    "duty": Field("duty", "/1000", 1.0, DUTY_C, "duty", "a", step=True, digits=0),
-    "flags": Field("flags", "", 1.0, FLAG_C, "flags", "a", step=True, kind="bits",
-                   digits=0),
 }
+CHANNEL_COLOURS = ("#d55e00", "#0072b2", "#009e73", "#7b4ab5", "#a66b00")
+for (channel, names), colour in zip(console.CHANNEL_FIELDS.items(), CHANNEL_COLOURS):
+    vin, iin, vout, iout, duty = names
+    FIELD_INFO[vin] = Field("vin", "V", 1000.0, colour, "volts", channel)
+    FIELD_INFO[iin] = Field("iin", "A", 1000.0, colour, "current", channel)
+    FIELD_INFO[vout] = Field("vout", "V", 1000.0, colour, "volts", channel)
+    FIELD_INFO[iout] = Field("iout", "A", 1000.0, colour, "current", channel)
+    FIELD_INFO[duty] = Field("duty", "%", 10.0, colour, "duty", channel,
+                             step=True, digits=1)
 
 
 @dataclass(frozen=True)
@@ -54,14 +55,30 @@ class Derived:
     args: tuple = dc_field(default=(), repr=False)
 
 
-DERIVED: tuple[Derived, ...] = (
-    Derived("pin_w", "pin", "W", PIN_C, "power", ("vin_mv", "iin_ma"),
-            expr="product_milli", channel="a"),
+DERIVED: tuple[Derived, ...] = tuple(
+    derived
+    for (channel, names), colour in zip(console.CHANNEL_FIELDS.items(), CHANNEL_COLOURS)
+    for derived in (
+        Derived(f"{channel}_pin_w", "pin", "W", colour, "power", names[:2],
+                expr="product_milli", channel=channel),
+        Derived(f"{channel}_pout_w", "pout", "W", colour, "power", names[2:4],
+                expr="product_milli", channel=channel),
+        Derived(f"{channel}_efficiency_pct", "efficiency", "%", colour, "efficiency",
+                names[:4], expr="efficiency_percent", channel=channel),
+    )
 )
+
+
+def efficiency_percent(vin, iin, vout, iout):
+    pin = vin * iin
+    if pin <= 0:
+        return None
+    return 100.0 * vout * iout / pin
 
 
 EXPRESSIONS = {
     "product_milli": lambda a, b: a * b / 1_000_000.0,
+    "efficiency_percent": efficiency_percent,
 }
 
 
@@ -69,19 +86,14 @@ PANELS: tuple[tuple[str, str], ...] = (
     ("volts", "voltage (V)"),
     ("current", "current (A)"),
     ("power", "power (W)"),
-    ("duty", "duty (/1000)"),
-    ("flags", "flags"),
-)
-
-
-FLAG_BITS: tuple[tuple[int, str], ...] = (
-    (0x01, "telem"),
-    (0x02, "running"),
+    ("efficiency", "efficiency (%)"),
+    ("duty", "duty (%)"),
 )
 
 
 IV_PAIRS: dict[str, dict[str, str]] = {
-    "a": {"x": "iin_ma", "y": "vin_mv", "power": "pin_w"},
+    channel: {"x": names[1], "y": names[0], "power": f"{channel}_pin_w"}
+    for channel, names in console.CHANNEL_FIELDS.items()
 }
 
 
@@ -151,7 +163,6 @@ def build(sequences: list[dict]) -> dict:
         "panels": panels(all_fields),
         "channels": channels or ["a"],
         "iv": {ch: pair for ch, pair in IV_PAIRS.items() if ch in channels},
-        "flag_bits": [{"mask": m, "label": l} for m, l in FLAG_BITS],
         "commands": sorted(console.OPCODES),
         "sequences": sequences,
         "stream_period_ms": console.STREAM_PERIOD_MS,

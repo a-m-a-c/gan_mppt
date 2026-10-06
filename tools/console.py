@@ -24,10 +24,13 @@ OPCODES = {
     "reset": 0x01,
     "clearfault": 0x02,
     "stop": 0x03,
-    "mppt": 0x04,
-    "cv": 0x05,
     "chmppt": 0x06,
     "ivsweep": 0x07,
+    "bypass_on": 0x08,
+    "bypass_off": 0x09,
+    "dualmppt": 0x0A,
+    "ch5mppt": 0x0B,
+    "auto": 0x0C,
 }
 
 
@@ -40,23 +43,55 @@ CRC_STUB = 0xCC
 # IDs and widths: Src/app/stream.c.
 
 
-STREAM_PERIOD_MS = 1
+STREAM_PERIOD_MS = 5
 
-
-STREAM = {
-    0x60: ("vbus_mv", 4, False),
-    0x61: ("duty", 2, False),
-    0x62: ("flags", 1, False),
-    0x63: ("vin_mv", 4, False),
-    0x64: ("iin_ma", 4, True),
-    0x65: ("vin_target_mv", 2, False),
+# Keep channel A's existing names for saved I-V tooling.
+CHANNEL_FIELDS = {
+    "a": ("vin_mv", "iin_ma", "vout_mv", "iout_ma", "duty"),
+    "b": ("b_vin_mv", "b_iin_ma", "b_vout_mv", "b_iout_ma", "b_duty"),
+    "c": ("c_vin_mv", "c_iin_ma", "c_vout_mv", "c_iout_ma", "c_duty"),
+    "d": ("d_vin_mv", "d_iin_ma", "d_vout_mv", "d_iout_ma", "d_duty"),
+    "e": ("e_vin_mv", "e_iin_ma", "e_vout_mv", "e_iout_ma", "e_duty"),
 }
+CHANNEL_IDS = {
+    "a": (0x63, 0x64, 0x66, 0x67, 0x61),
+    "b": (0x70, 0x71, 0x72, 0x73, 0x74),
+    "c": (0x80, 0x81, 0x82, 0x83, 0x84),
+    "d": (0x90, 0x91, 0x92, 0x93, 0x94),
+    "e": (0xA0, 0xA1, 0xA2, 0xA3, 0xA4),
+}
+STREAM = {0x60: ("vbus_mv", 4, False)}
+for channel, names in CHANNEL_FIELDS.items():
+    for index, (ident, name) in enumerate(zip(CHANNEL_IDS[channel], names)):
+        width = 4
+        if index == 4:
+            width = 2
+        STREAM[ident] = (name, width, index in (1, 3))
 
-# stream.c must send vbus_mv first and flags last to delimit each set.
+STREAM_NAMES = tuple(spec[0] for spec in STREAM.values())
+STREAM_FIRST = STREAM_NAMES[0]
+STREAM_LAST = STREAM_NAMES[-1]
 
 
-STREAM_FIRST = "vbus_mv"
-STREAM_LAST = "flags"
+class StreamSet:
+    """Publish complete ordered sets without mixing snapshots."""
+
+    def __init__(self) -> None:
+        self.pending = {}
+
+    def feed(self, name: str, value: int | None) -> dict | None:
+        if name == STREAM_FIRST:
+            self.pending = {}
+        index = len(self.pending)
+        if index >= len(STREAM_NAMES) or name != STREAM_NAMES[index]:
+            self.pending = {}
+            return None
+        self.pending[name] = value
+        if name == STREAM_LAST:
+            result = self.pending
+            self.pending = {}
+            return result
+        return None
 
 
 def encode(op: int, payload: bytes = b"") -> bytes:
@@ -71,9 +106,9 @@ class StreamParser:
         self.resyncs = 0
         self.frames = 0
 
-    def feed(self, data: bytes) -> list[tuple[str, int]]:
+    def feed(self, data: bytes) -> list[tuple[str, int | None]]:
         self.buf += data
-        out: list[tuple[str, int]] = []
+        out: list[tuple[str, int | None]] = []
         while True:
             if len(self.buf) < 2:
                 return out
@@ -87,6 +122,8 @@ class StreamParser:
                 return out
             name, _, signed = known
             value = int.from_bytes(self.buf[2 : 2 + size], "little", signed=signed)
+            if size == 4 and value in (0xFFFFFFFF, -0x80000000):
+                value = None
             del self.buf[: 2 + size]
             self.frames += 1
             out.append((name, value))
@@ -96,7 +133,7 @@ class Board:
     def __init__(self, port: str) -> None:
         self.ser = serial.Serial(port, BAUD, timeout=0.05)
         self.parser = StreamParser()
-        self.latest: dict[str, int] = {}
+        self.latest: dict[str, int | None] = {}
         self.lock = threading.Lock()
         self.running = True
         self.watch = False
@@ -128,16 +165,21 @@ class Board:
             latest = dict(self.latest)
         if "vbus_mv" not in latest:
             return "no telemetry yet"
-        vbus = latest["vbus_mv"] / 1000.0
-        vin = latest.get("vin_mv", 0) / 1000.0
-        iin = latest.get("iin_ma", 0) / 1000.0
-        duty = latest.get("duty", 0)
-        flags = latest.get("flags", 0)
-        return (
-            f"vin {vin:6.3f} V  iin {iin:7.3f} A  pin {vin * iin:7.2f} W  "
-            f"vbus {vbus:6.2f} V  duty {duty:4d}/1000  flags 0x{flags:02X}"
-            f"  [{self.parser.frames} frames, {self.parser.resyncs} resynced]"
-        )
+        def display(name: str, divisor: float) -> str:
+            value = latest.get(name)
+            if value is None:
+                return "--"
+            return f"{value / divisor:.3f}"
+
+        parts = [f"vbus {display('vbus_mv', 1000)} V"]
+        for channel, names in CHANNEL_FIELDS.items():
+            vin, iin, vout, iout, duty = names
+            parts.append(
+                f"{channel.upper()}: vin {display(vin, 1000)} V "
+                f"iin {display(iin, 1000)} A vout {display(vout, 1000)} V "
+                f"iout {display(iout, 1000)} A duty {display(duty, 10)} %")
+        parts.append(f"[{self.parser.frames} frames, {self.parser.resyncs} resynced]")
+        return " | ".join(parts)
 
     def send(self, op: int, payload: bytes = b"") -> None:
         frame = encode(op, payload)
@@ -163,7 +205,8 @@ def pick_port() -> str | None:
 
 HELP = """commands
   reset | clearfault | stop                        send a system command
-  mppt | cv | chmppt | ivsweep                     run a mode
+  auto | chmppt | ch5mppt | dualmppt | ivsweep        run a mode
+  bypass_on | bypass_off                          control the diode bypass
   raw <op-hex> [byte-hex ...]                      send an arbitrary frame
   watch                                            toggle telemetry printing
   rate <interval_ms>                               set the watch print interval

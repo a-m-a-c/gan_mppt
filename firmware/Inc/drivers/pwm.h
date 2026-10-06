@@ -15,7 +15,7 @@ bool pwm_set_duty_cycle(uint32_t channel, uint16_t duty_cycle);
 void pwm_set_dead_time(uint32_t channel, uint16_t dead_time);
 void pwm_set_frequency(uint32_t channel, uint32_t frequency);
 
-bool pwm_start(uint32_t channel);
+bool pwm_start(uint32_t channel, uint16_t duty_cycle);
 void pwm_stop(uint32_t channel);
 void pwm_stop_all(void);
 

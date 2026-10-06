@@ -17,49 +17,51 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CAPTURE_DIR = REPO_ROOT / "captures"
 
 
-T, T_HOST, VBUS_MV, VIN_MV, IIN_MA, DUTY, FLAGS = range(7)
-CSV_HEADER = ["t_s", "t_host_s", "vbus_mv", "vin_mv", "iin_ma", "duty", "flags", "event"]
+CSV_HEADER = ["t_s", "t_host_s", *console.STREAM_NAMES, "event"]
+T, T_HOST = 0, 1
+VBUS_MV = CSV_HEADER.index("vbus_mv")
+VIN_MV = CSV_HEADER.index("vin_mv")
+IIN_MA = CSV_HEADER.index("iin_ma")
+DUTY = CSV_HEADER.index("duty")
 
 
 class Recorder:
     def __init__(self) -> None:
         self.rows: list[tuple] = []
         self.events: list[tuple[float, str]] = []
-        self.latest: dict[str, int] = {}
+        self.assembler = console.StreamSet()
+        self.start_time = 0.0
         self.ticks = -1
         self.partial = 0
         self.complete = True
         self.recording = True
         self.lock = threading.Lock()
 
-    def feed(self, name: str, value: int, t_host: float) -> None:
-        if not self.recording:
-            return
+    def feed(self, name: str, value: int | None, t_host: float) -> None:
         with self.lock:
+            if not self.recording:
+                return
             if name == console.STREAM_FIRST:
                 if self.ticks >= 0 and not self.complete:
                     self.partial += 1
                 self.ticks += 1
                 self.complete = False
-            self.latest[name] = value
-            if name == console.STREAM_LAST:
+            snapshot = self.assembler.feed(name, value)
+            if snapshot is not None:
                 self.complete = True
-                self.rows.append((
-                    self.ticks * console.STREAM_PERIOD_MS / 1000.0,
-                    t_host,
-                    self.latest.get("vbus_mv"),
-                    self.latest.get("vin_mv"),
-                    self.latest.get("iin_ma"),
-                    self.latest.get("duty"),
-                    self.latest.get("flags"),
-                ))
+                self.rows.append((t_host - self.start_time, t_host,
+                                  *(snapshot[name] for name in console.STREAM_NAMES)))
 
     def mark(self, t_host: float, label: str) -> None:
         with self.lock:
-            self.events.append((t_host, label))
+            self.events.append((t_host - self.start_time, label))
 
     def stop(self) -> None:
-        self.recording = False
+        with self.lock:
+            self.recording = False
+            if self.ticks >= 0 and not self.complete:
+                self.partial += 1
+                self.complete = True
 
     def write_csv(self, path: Path) -> None:
         with self.lock:
@@ -103,11 +105,11 @@ class Sequence:
 
 SEQUENCES: tuple[Sequence, ...] = (
     Sequence(
-        name="cv",
-        label="CV step",
-        steps=((2.0, "cv"), (5.0, "stop")),
+        name="auto",
+        label="Auto mode",
+        steps=((2.0, "auto"), (5.0, "stop")),
         length=8.0,
-        description="Constant-voltage loop for 3 s, with idle either side.",
+        description="Auto stub for 3 s; no channel control implemented yet.",
     ),
     Sequence(
         name="ivsweep",
@@ -118,20 +120,26 @@ SEQUENCES: tuple[Sequence, ...] = (
         description="Full duty sweep; also renders the I-V curve, one line per pass.",
     ),
     Sequence(
-        name="mppt",
-        label="MPPT run",
-        steps=((2.0, "mppt"), (30.0, "stop")),
-        length=32.0,
-        renders=("timeseries", "iv"),
-        description="Perturb-and-observe tracking for 28 s.",
-    ),
-    Sequence(
         name="chmppt",
-        label="Single-channel MPPT",
+        label="Single-channel MPPT (1)",
         steps=((2.0, "chmppt"), (30.0, "stop")),
         length=32.0,
         renders=("timeseries", "iv"),
         description="Channel-A MPPT for 28 s.",
+    ),
+    Sequence(
+        name="ch5mppt",
+        label="Single-channel MPPT (5)",
+        steps=((2.0, "ch5mppt"), (30.0, "stop")),
+        length=32.0,
+        description="Channel-5 MPPT for 28 s.",
+    ),
+    Sequence(
+        name="dualmppt",
+        label="Dual-channel MPPT (1 + 5)",
+        steps=((2.0, "dualmppt"), (30.0, "stop")),
+        length=32.0,
+        description="Independent MPPT on channels 1 and 5 for 28 s.",
     ),
 )
 
@@ -157,6 +165,7 @@ class SequenceRun:
         self.clock = clock
         self.on_event = on_event or (lambda *a: None)
         self.t0 = clock()
+        self.recorder.start_time = self.t0
         self.cancelled = threading.Event()
         self.finished = threading.Event()
         self.error: str | None = None
@@ -255,11 +264,6 @@ def summarise(recorder: Recorder) -> list[str]:
     span(DUTY, 1.0, " ", "duty", "6.0f")
 
 
-    if len(rows) > 1:
-        board, host = rows[-1][T] - rows[0][T], rows[-1][T_HOST] - rows[0][T_HOST]
-        if host > 0 and abs(board - host) > 0.05 * host:
-            lines.append(f"WARNING board clock {board:.2f} s vs host {host:.2f} s"
-                         f" - sets were dropped, t_s is not trustworthy")
     return lines
 
 
@@ -277,25 +281,25 @@ def render_timeseries(recorder: Recorder, path: Path, seq: Sequence) -> None:
     def scaled(index: int, divisor: float) -> list:
         return [(r[index] / divisor) if r[index] is not None else None for r in rows]
 
-    fig, axes = plt.subplots(4, 1, sharex=True, figsize=(11, 9),
-                             gridspec_kw={"height_ratios": [3, 3, 3, 1]})
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(11, 9))
     window = f"{plot_start:g}-{length:g} s" if plot_start else f"{length:g} s"
     fig.suptitle(f"{seq.label} - {window}")
-
-    axes[0].plot(t, scaled(VIN_MV, 1000.0), lw=1.2, color="#ff7f0e", label="vin (ch A)")
-    axes[0].plot(t, scaled(VBUS_MV, 1000.0), lw=1.2, color="#1f77b4", label="vbus")
-    axes[0].set_ylabel("volts")
-    axes[0].legend(loc="upper left", fontsize=8)
-    axes[1].plot(t, scaled(IIN_MA, 1000.0), lw=1.2, color="#9467bd")
-    axes[1].set_ylabel("iin (A)")
-    axes[1].axhline(0.0, color="#999999", lw=0.8)
-    axes[2].plot(t, [r[DUTY] for r in rows], lw=1.2, color="#d62728",
-                 drawstyle="steps-post")
-    axes[2].set_ylabel("duty (/1000)")
-    axes[3].plot(t, [r[FLAGS] for r in rows], lw=1.2, color="#7f7f7f",
-                 drawstyle="steps-post")
-    axes[3].set_ylabel("flags")
-    axes[3].set_xlabel("time (s)")
+    axes[0].plot(t, scaled(VBUS_MV, 1000.0), lw=1.2, label="vbus")
+    for channel, names in console.CHANNEL_FIELDS.items():
+        for name in names[:4]:
+            axis = axes[0]
+            if name.endswith("_ma"):
+                axis = axes[1]
+            axis.plot(t, scaled(CSV_HEADER.index(name), 1000.0), lw=1,
+                      label=f"{channel.upper()} {name.removeprefix(channel + '_')}")
+        axes[2].plot(t, scaled(CSV_HEADER.index(names[4]), 10.0), lw=1,
+                     drawstyle="steps-post", label=channel.upper())
+    axes[0].set_ylabel("voltage (V)")
+    axes[1].set_ylabel("current (A)")
+    axes[2].set_ylabel("duty (%)")
+    axes[2].set_xlabel("time (s)")
+    for axis in axes:
+        axis.legend(loc="upper left", fontsize=7, ncol=3)
 
     colours = {"stop": "#333333"}
     for when, verb in recorder.events:

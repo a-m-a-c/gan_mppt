@@ -6,17 +6,20 @@
 #include "main.h"
 #include "serial.h"
 
-#define NUM_COMMAND_SLOTS 8
+#define NUM_COMMAND_SLOTS 11
 
 typedef enum {
   OP_SYSTEM_COMMAND_NONE = 0x00,
   OP_SYSTEM_COMMAND_RESET = 0x01,
   OP_SYSTEM_COMMAND_CLEAR_FAULT = 0x02,
   OP_SYSTEM_COMMAND_STOP = 0x03,
-  OP_SYSTEM_COMMAND_RUN_MPPT = 0x04,
-  OP_SYSTEM_COMMAND_RUN_SINGLE_CH_CV = 0x05,
   OP_SYSTEM_COMMAND_RUN_SINGLE_CH_MPPT = 0x06,
-  OP_SYSTEM_COMMAND_RUN_SINGLE_CH_IV_SWEEP = 0x07
+  OP_SYSTEM_COMMAND_RUN_SINGLE_CH_IV_SWEEP = 0x07,
+  OP_SYSTEM_COMMAND_BYPASS_ON = 0x08,
+  OP_SYSTEM_COMMAND_BYPASS_OFF = 0x09,
+  OP_SYSTEM_COMMAND_RUN_DUAL_CH_MPPT = 0x0A,
+  OP_SYSTEM_COMMAND_RUN_SINGLE_CH_5_MPPT = 0x0B,
+  OP_SYSTEM_COMMAND_RUN_AUTO = 0x0C
 } serial_opcode_t;
 
 static mode_t pending_mode;
@@ -35,13 +38,9 @@ static void accept_serial_command(transport_frame_t *frame) {
       system_command_received_register[SYSTEM_COMMAND_STOP] = true;
       pending_mode = MODE_NONE;
       break;
-    case OP_SYSTEM_COMMAND_RUN_MPPT:
-      system_command_received_register[SYSTEM_COMMAND_RUN_MPPT] = true;
-      pending_mode = MODE_MPPT;
-      break;
-    case OP_SYSTEM_COMMAND_RUN_SINGLE_CH_CV:
-      system_command_received_register[SYSTEM_COMMAND_RUN_SINGLE_CH_CV] = true;
-      pending_mode = MODE_SINGLE_CH_CV;
+    case OP_SYSTEM_COMMAND_RUN_AUTO:
+      system_command_received_register[SYSTEM_COMMAND_RUN_AUTO] = true;
+      pending_mode = MODE_AUTO;
       break;
     case OP_SYSTEM_COMMAND_RUN_SINGLE_CH_MPPT:
       system_command_received_register[SYSTEM_COMMAND_RUN_SINGLE_CH_MPPT] = true;
@@ -50,6 +49,22 @@ static void accept_serial_command(transport_frame_t *frame) {
     case OP_SYSTEM_COMMAND_RUN_SINGLE_CH_IV_SWEEP:
       system_command_received_register[SYSTEM_COMMAND_RUN_SINGLE_CH_IV_SWEEP] = true;
       pending_mode = MODE_SINGLE_CH_IV_SWEEP;
+      break;
+    case OP_SYSTEM_COMMAND_RUN_SINGLE_CH_5_MPPT:
+      system_command_received_register[SYSTEM_COMMAND_RUN_SINGLE_CH_5_MPPT] = true;
+      pending_mode = MODE_SINGLE_CH_5_MPPT;
+      break;
+    case OP_SYSTEM_COMMAND_RUN_DUAL_CH_MPPT:
+      system_command_received_register[SYSTEM_COMMAND_RUN_DUAL_CH_MPPT] = true;
+      pending_mode = MODE_DUAL_CH_MPPT;
+      break;
+    case OP_SYSTEM_COMMAND_BYPASS_ON:
+      system_command_received_register[SYSTEM_COMMAND_BYPASS_ON] = true;
+      system_command_received_register[SYSTEM_COMMAND_BYPASS_OFF] = false;
+      break;
+    case OP_SYSTEM_COMMAND_BYPASS_OFF:
+      system_command_received_register[SYSTEM_COMMAND_BYPASS_OFF] = true;
+      system_command_received_register[SYSTEM_COMMAND_BYPASS_ON] = false;
       break;
     default:
 
