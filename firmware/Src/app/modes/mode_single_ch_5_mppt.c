@@ -53,7 +53,7 @@ static uint32_t abs_diff(uint32_t a, uint32_t b) {
 }
 
 static mode_state_t finish(mode_state_t state) {
-  control_stop();
+  control_stop_all();
   return state;
 }
 
@@ -71,7 +71,7 @@ mode_request_result_t mode_single_ch_5_mppt_begin(void) {
   pi_init(&vin_pi, KP, KI, (float)MIN_DUTY_CYCLE, (float)MAX_DUTY_CYCLE);
 
   control_init(&control_cfg);
-  control_start();
+  control_start(CHANNEL_E);
   if (channel_e.pwm.op_state != PWM_STATE_RUNNING) return MODE_INIT_REFUSED;
 
   return MODE_INIT_OK;
@@ -126,6 +126,6 @@ mode_state_t mode_single_ch_5_mppt_service(bool stopping) {
     control_set_duty(CHANNEL_E, duty);
   }
 
-  control_service();
+  control_service(CHANNEL_E);
   return MODE_STATE_RUNNING;
 }

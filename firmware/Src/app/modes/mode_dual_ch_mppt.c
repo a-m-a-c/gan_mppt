@@ -60,7 +60,7 @@ static uint32_t abs_diff(uint32_t a, uint32_t b) {
 }
 
 static mode_state_t finish(mode_state_t state) {
-  control_stop();
+  control_stop_all();
   return state;
 }
 
@@ -86,9 +86,10 @@ mode_request_result_t mode_dual_ch_mppt_begin(void) {
   pi_init(&vin_pi_e, KP, KI, (float)MIN_DUTY_CYCLE, (float)MAX_DUTY_CYCLE);
 
   control_init(&control_cfg);
-  control_start();
+  control_start(CHANNEL_A);
+  control_start(CHANNEL_E);
   if (channel_a.pwm.op_state != PWM_STATE_RUNNING || channel_e.pwm.op_state != PWM_STATE_RUNNING) {
-    control_stop();
+    control_stop_all();
     return MODE_INIT_REFUSED;
   }
 
@@ -176,6 +177,7 @@ mode_state_t mode_dual_ch_mppt_service(bool stopping) {
     }
   }
 
-  control_service();
+  control_service(CHANNEL_A);
+  control_service(CHANNEL_E);
   return MODE_STATE_RUNNING;
 }

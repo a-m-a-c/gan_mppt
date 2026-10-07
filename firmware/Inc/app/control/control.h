@@ -21,12 +21,14 @@ typedef struct {
 
 void control_init(control_config_t *config);
 
-void control_start(void);
+void control_start(uint32_t channel);
 
-void control_service(void);
+void control_service(uint32_t channel);
 
 void control_set_duty(uint32_t channel, uint16_t duty_cycle);
 
-void control_stop(void);
+void control_stop(uint32_t channel);
+
+void control_stop_all(void);
 
 #endif

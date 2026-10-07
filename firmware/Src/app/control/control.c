@@ -9,13 +9,14 @@
 static control_config_t *control_config;
 static uint16_t requested_duty[CHANNEL_COUNT];
 static const bool *channel_enabled[CHANNEL_COUNT];
-static uint32_t last_duty_update_ms;
+static uint32_t last_duty_update_ms[CHANNEL_COUNT];
 
 static void reset_requests(void) {
+  const uint32_t now = HAL_GetTick();
   for (uint32_t i = 0; i < CHANNEL_COUNT; i++) {
     requested_duty[i] = 0;
+    last_duty_update_ms[i] = now;
   }
-  last_duty_update_ms = HAL_GetTick();
 }
 
 static uint16_t calculate_starting_duty(channel_t *channel) {
@@ -44,19 +45,13 @@ void control_init(control_config_t *config) {
   channel_enabled[CHANNEL_E] = &config->channel_e_enabled;
 }
 
-void control_start(void) {
-  if (!control_config) return;
-  reset_requests();
-  // Determine starting duty cycle.
-  for (uint32_t i = 0; i < CHANNEL_COUNT; i++) {
-    if (!*channel_enabled[i]) continue;
-    requested_duty[i] = calculate_starting_duty(channel_by_id(i));
-    if (!pwm_start(i, requested_duty[i])) {
-      control_stop();
-      return;
-    }
+void control_start(uint32_t channel) {
+  if (!control_config || channel >= CHANNEL_COUNT || !*channel_enabled[channel]) return;
+  requested_duty[channel] = calculate_starting_duty(channel_by_id(channel));
+  if (!pwm_start(channel, requested_duty[channel])) {
+    control_stop(channel);
   }
-  last_duty_update_ms = HAL_GetTick();
+  last_duty_update_ms[channel] = HAL_GetTick();
 }
 
 static uint16_t apply_ramp_rate(uint16_t requested, uint16_t applied, uint32_t dt_ms) {
@@ -80,17 +75,15 @@ static void update_duty(channel_t *channel, uint16_t requested, uint32_t dt_ms) 
   (void)pwm_set_duty_cycle(channel->id, requested);
 }
 
-void control_service(void) {
-  if (!control_config) return;
+void control_service(uint32_t channel) {
+  if (!control_config || channel >= CHANNEL_COUNT || !*channel_enabled[channel]) return;
 
   const uint32_t now = HAL_GetTick();
-  uint32_t dt_ms = now - last_duty_update_ms;
-  last_duty_update_ms = now;
+  uint32_t dt_ms = now - last_duty_update_ms[channel];
+  last_duty_update_ms[channel] = now;
   if (dt_ms > RAMP_DT_MAX_MS) dt_ms = RAMP_DT_MAX_MS;
 
-  for (uint32_t i = 0; i < CHANNEL_COUNT; i++) {
-    if (*channel_enabled[i]) update_duty(channel_by_id(i), requested_duty[i], dt_ms);
-  }
+  update_duty(channel_by_id(channel), requested_duty[channel], dt_ms);
 }
 
 void control_set_duty(uint32_t channel, uint16_t duty_cycle) {
@@ -98,10 +91,16 @@ void control_set_duty(uint32_t channel, uint16_t duty_cycle) {
   if (*channel_enabled[channel]) requested_duty[channel] = duty_cycle;
 }
 
-void control_stop(void) {
-  reset_requests();
+void control_stop(uint32_t channel) {
+  if (!control_config || channel >= CHANNEL_COUNT) return;
+  requested_duty[channel] = 0;
+  last_duty_update_ms[channel] = HAL_GetTick();
+  pwm_stop(channel);
+}
+
+void control_stop_all(void) {
   if (!control_config) return;
   for (uint32_t i = 0; i < CHANNEL_COUNT; i++) {
-    if (*channel_enabled[i]) pwm_stop(i);
+    if (*channel_enabled[i]) control_stop(i);
   }
 }
