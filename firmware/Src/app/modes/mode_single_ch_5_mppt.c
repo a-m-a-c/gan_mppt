@@ -3,9 +3,7 @@
 #include "system.h"
 #include "channel.h"
 #include "control.h"
-#include "pi.h"
-#include "perturb_observe.h"
-#include <math.h>
+#include "mppt_v1.h"
 #include <stdint.h>
 
 static control_config_t control_cfg = {
@@ -15,41 +13,27 @@ static control_config_t control_cfg = {
   .ramp_rate_per_ms = 1,
 };
 
-#define PO_PERIOD_MS 100U
-#define PO_STEP_MV   100U
-#define KP 0.02f
-#define KI 0.4f
-#define MAX_DUTY_CYCLE 700
-#define MIN_DUTY_CYCLE 0
-
-#define PO_ARRIVED_MV 30U
-
-#define PO_STALL_MS (10U * PO_PERIOD_MS)
+static const mppt_config_t mppt_cfg = {
+  .kp = 0.02f,
+  .ki = 0.4f,
+  .duty_min = 0,
+  .duty_max = 700,
+  .po_period_ms = 100U,
+  .po_step_mv = 100U,
+  .po_arrived_mv = 30U,
+  .po_stall_ms = 10U * 100U,
+  .seed_fraction = 0.8f,
+  .target_min_mv = 2000U,
+  .target_max_mv = 30500U,
+  .dt_max_ms = 120U,
+};
 
 #define TELEM_MAX_AGE_MS 120U
-#define DT_MAX_MS        TELEM_MAX_AGE_MS
-
-#define IIN_IDLE_MAX_A 1.0f
-
-// Bench-only ceiling copied from channel-1 MPPT.
+// Bench-only ceiling.
 #define MAX_OUTPUT_MV 14600U
-
-#define PO_SEED_FRACTION 0.8f
-
-#define VIN_TARGET_MIN_MV 2000
-#define VIN_TARGET_MAX_MV 30500
-
-static uint32_t last_po_ms;
-static uint32_t last_telem_tick;
-static po_t vin_po;
-static pi_t vin_pi;
 
 static bool telem_is_fresh(uint32_t now) {
   return channel_e.telem.valid && ((now - channel_e.telem.tick_ms) <= TELEM_MAX_AGE_MS);
-}
-
-static uint32_t abs_diff(uint32_t a, uint32_t b) {
-  return (a > b) ? (a - b) : (b - a);
 }
 
 static mode_state_t finish(mode_state_t state) {
@@ -62,13 +46,7 @@ mode_request_result_t mode_single_ch_5_mppt_begin(void) {
 
   if (!telem_is_fresh(now)) return MODE_INIT_REFUSED;
 
-  last_po_ms = now;
-  last_telem_tick = channel_e.telem.tick_ms;
-
-  const float initial_target_mv = floorf(channel_e.telem.vin_v * 1000.0f * PO_SEED_FRACTION);
-  po_init(&vin_po, PO_STEP_MV, VIN_TARGET_MIN_MV, VIN_TARGET_MAX_MV, initial_target_mv);
-
-  pi_init(&vin_pi, KP, KI, (float)MIN_DUTY_CYCLE, (float)MAX_DUTY_CYCLE);
+  mppt_begin(CHANNEL_E, &mppt_cfg);
 
   control_init(&control_cfg);
   control_start(CHANNEL_E);
@@ -98,34 +76,7 @@ mode_state_t mode_single_ch_5_mppt_service(bool stopping) {
     return finish(MODE_STATE_FAULTED);
   }
 
-  const uint32_t vin_mv = (uint32_t)(channel_e.telem.vin_v * 1000.0f);
-  const bool dwelled = (now - last_po_ms) >= PO_PERIOD_MS;
-  const bool sampled = (int32_t)(channel_e.telem.tick_ms - last_po_ms) > 0;
-  const bool arrived = abs_diff(vin_mv, (uint32_t)vin_po.target) <= PO_ARRIVED_MV;
-  const bool stalled = (now - last_po_ms) >= PO_STALL_MS;
-
-  if (dwelled && sampled && (arrived || stalled)) {
-    last_po_ms = now;
-    const float pin_w = channel_e.telem.vin_v * channel_e.telem.iin_a;
-
-    (void)po_update(&vin_po, pin_w);
-  }
-
-  if (channel_e.telem.tick_ms != last_telem_tick) {
-    uint32_t dt_ms = channel_e.telem.tick_ms - last_telem_tick;
-    last_telem_tick = channel_e.telem.tick_ms;
-    if (dt_ms > DT_MAX_MS) {
-      dt_ms = DT_MAX_MS;
-    }
-
-    pi_track(&vin_pi, (float)channel_e.pwm.duty_applied);
-    // Invert PI error: boost input voltage falls as duty rises.
-    uint16_t duty = (uint16_t)pi_update(&vin_pi, channel_e.telem.vin_v * 1000.0f,
-                                        vin_po.target, (float)dt_ms);
-
-    control_set_duty(CHANNEL_E, duty);
-  }
-
+  mppt_service(CHANNEL_E);
   control_service(CHANNEL_E);
   return MODE_STATE_RUNNING;
 }

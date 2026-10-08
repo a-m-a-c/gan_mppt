@@ -67,8 +67,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/modes/mode_single_ch_iv_sweep.c
     Src/drivers/serial.c
     Src/app/control/control.c
-    Src/app/control/pi.c
-    Src/app/control/perturb_observe.c
+    Src/app/control/controllers/mppt_v1.c
+    Src/app/control/controllers/cv_v1.c
+    Src/app/control/control_helpers/pi.c
+    Src/app/control/control_helpers/perturb_observe.c
 )
 
 # Add include paths
@@ -78,6 +80,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Inc/app
     Inc/app/modes
     Inc/app/control
+    Inc/app/control/controllers
+    Inc/app/control/control_helpers
 )
 
 # Add project symbols (macros)
