@@ -5,6 +5,7 @@
 #include "pwm.h"
 #include "usart.h"
 #include "serial.h"
+#include "measure_io.h"
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -58,7 +59,8 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
   if (hi2c->Instance == I2C1)
   {
-    telem_i2c_complete();
+    if (measure_io_routes_i2c()) measure_io_i2c_complete();
+    else telem_i2c_complete();
   }
 }
 
@@ -66,12 +68,17 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
   if (hi2c->Instance == I2C1)
   {
-    telem_i2c_error();
+    if (measure_io_routes_i2c()) measure_io_i2c_error();
+    else telem_i2c_error();
   }
 }
 
 void UART5_IRQHandler(void) {
   HAL_UART_IRQHandler(&huart5);
+}
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c) {
+  if (hi2c->Instance == I2C1 && measure_io_routes_i2c()) measure_io_i2c_complete();
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {

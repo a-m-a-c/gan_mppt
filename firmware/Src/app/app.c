@@ -18,6 +18,8 @@
 #include "stream.h"
 #include "serial.h"
 #include "diode_bypass.h"
+#include "mode_measure.h"
+#include "measure_io.h"
 
 volatile bool error_flag = false;
 
@@ -88,7 +90,7 @@ void app_loop(void) {
     case SYSTEM_STATE_STANDBY: {
       if (entered) pwm_stop_all();
 
-      sys.mode = system_command_requested_mode();
+      sys.mode = measure_io_owned() ? MODE_NONE : system_command_requested_mode();
 
       if (sys.mode != MODE_NONE) sys.state = SYSTEM_STATE_ACTIVE;
       break;
@@ -152,7 +154,12 @@ void app_loop(void) {
 
   analog_service();
   status_service();
-  stream_service();
-  telem_service();
+  if (measure_io_owned()) {
+    if (sys.state != SYSTEM_STATE_ACTIVE || sys.mode != MODE_MEASURE) mode_measure_end();
+    measure_io_service();
+  } else {
+    stream_service();
+    telem_service();
+  }
   command_flush_all();
 }

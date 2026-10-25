@@ -7,6 +7,7 @@ dependencies = [
     "fastapi>=0.115",
     "matplotlib>=3.8",
     "pyserial>=3.5",
+    "scipy>=1.15",
     "uvicorn>=0.30",
     "websockets>=12",
 ]

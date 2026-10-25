@@ -43,8 +43,8 @@ typedef enum {
 
 static control_phase_t current_phase;
 
-#define CV_THRESHOLD 14.0f+20.0f
-#define ABS_THRESHOLD 14.6f
+#define CV_THRESHOLD 50.0f
+#define ABS_THRESHOLD 50.0f
 
 // Channel state machine to track plugging and starting.
 typedef enum {

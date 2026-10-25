@@ -1,0 +1,394 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=22mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\title{How the Combined Bus Ripple Is Calculated}
+\author{Five-channel boost-converter calculator}
+\date{14 October 2026}
+
+\begin{document}
+\maketitle
+
+\section{The idea in plain English}
+
+The load wants a steady current. Each boost converter supplies the output in
+pulses. Whenever the converters supply less than the load wants, the output
+capacitor makes up the difference and its voltage falls. Whenever they supply
+more, the extra current charges the capacitor and its voltage rises.
+
+The calculation therefore does three things:
+\begin{enumerate}
+  \item Work out when each converter supplies current to the output.
+  \item Add those currents and subtract the load current.
+  \item Accumulate the resulting charge and divide by capacitance to get voltage.
+\end{enumerate}
+
+\textbf{Interleaving changes the timing of the pulses, not their average power.}
+The comparison holds the operating points and capacitance fixed. The current
+calculator predicts
+\[
+  \boxed{\Delta V_{\mathrm{pp,aligned}}=101.07\ \mathrm{mV}},\qquad
+  \boxed{\Delta V_{\mathrm{pp,72^\circ}}=12.11\ \mathrm{mV}}.
+\]
+These are predictions of the simplified model below, not measured board results.
+``Peak-to-peak'' means the largest voltage minus the smallest voltage over a
+complete switching period. It does not mean the peak excursion from the mean.
+
+\section{Inputs and assumptions}
+
+The values in \texttt{calculator.py} are
+\begin{align*}
+  V_{\mathrm{bus}} &=48\ \mathrm{V}, &
+  f_s &=300\ \mathrm{kHz}, & T_s=1/f_s&=3.333333\ \mu\mathrm{s},\\
+  \eta &=0.95, & L&=33\ \mu\mathrm{H}, & G&=1000\ \mathrm{W/m^2}.
+\end{align*}
+Each converter is assigned $48.84\ \mu\mathrm{F}$ of output capacitance.
+For the combined calculation, we explicitly assume that all five capacitors
+behave as one directly parallel bank:
+\[
+ C_{\mathrm{bus}}=5\times48.84\ \mu\mathrm{F}=244.2\ \mu\mathrm{F}.
+\]
+This is an editable modelling assumption. Output isolation, wiring and actual
+capacitor placement must be considered before treating it as a board fact.
+
+The model assumes continuous-conduction boost operation, constant input and bus
+voltages within a switching period, and constant load current. It uses ideal
+boost duty ratios and applies efficiency to average output power. The combined
+calculation approximates output pulses as rectangular: inductor ripple,
+capacitor ESR/ESL, dead time, output isolation and battery impedance are omitted.
+The 48 V setting establishes the operating point; it is \emph{not} an ideal
+voltage source clamping the simulated ripple to zero.
+
+\section{From the panel to each converter's operating point}
+
+Let $k$ identify F1, BL, BR, R1 or R2. The panel model keeps its MPP voltage
+fixed and scales its reference MPP current linearly with irradiance:
+\[
+ V_{\mathrm{in},k}=V_{\mathrm{mpp},k},\qquad
+ I_{\mathrm{in},k}=I_{\mathrm{mpp,ref},k}
+       \frac{G_k}{1000\ \mathrm{W/m^2}}.
+\]
+All five panels currently have $I_{\mathrm{mpp,ref}}=8.22\ \mathrm{A}$, so
+at the selected irradiance all five input currents equal $8.22\ \mathrm{A}$.
+The stored open-circuit voltage and short-circuit current are not used in this
+particular operating-point calculation.
+
+The ideal boost voltage relation gives the low-side switch's on-time fraction:
+\[
+ V_{\mathrm{bus}}=\frac{V_{\mathrm{in},k}}{1-D_k}
+ \quad\Longrightarrow\quad
+ \boxed{D_k=1-\frac{V_{\mathrm{in},k}}{V_{\mathrm{bus}}}}.
+\]
+For example, F1 uses $D=1-27.59/48=0.42520833$, or $42.520833\%$.
+Efficiency is not inserted into this ideal duty relation in the current code.
+
+Average power and output current are
+\[
+ P_{\mathrm{in},k}=V_{\mathrm{in},k}I_{\mathrm{in},k},\qquad
+ P_{\mathrm{out},k}=\eta P_{\mathrm{in},k},\qquad
+ \boxed{\overline I_{\mathrm{out},k}
+       =\frac{\eta V_{\mathrm{in},k}I_{\mathrm{in},k}}{V_{\mathrm{bus}}}}.
+\]
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Panel & $V_{\mathrm{in}}$ (V) & $I_{\mathrm{in}}$ (A) & $D$ & $\overline I_{\mathrm{out}}$ (A)\\
+\midrule
+F1 & 27.59 & 8.22 & 0.42520833 & 4.488548125\\
+BL & 16.15 & 8.22 & 0.66354167 & 2.627403125\\
+BR & 16.15 & 8.22 & 0.66354167 & 2.627403125\\
+R1 & 21.54 & 8.22 & 0.55125000 & 3.504288750\\
+R2 & 12.11 & 8.22 & 0.74770833 & 1.970145625\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The constant load is chosen to consume the total average output current:
+\[
+ \boxed{I_{\mathrm{load}}=\sum_k\overline I_{\mathrm{out},k}
+                         =15.21778875\ \mathrm{A}}.
+\]
+This makes average capacitor current zero, so the bus does not drift upward or
+downward from cycle to cycle.
+
+\section{The individual ripple and peak values printed by the calculator}
+
+During switch-on the inductor sees approximately $V_{\mathrm{in}}$.
+Using $v_L=L\,di_L/dt$ for an on-time of $D_kT_s$ gives
+\[
+ \boxed{\Delta I_{L,k,\mathrm{pp}}
+       =\frac{V_{\mathrm{in},k}D_k}{L f_s}},\qquad
+ \boxed{I_{L,k,\mathrm{peak}}
+       =I_{\mathrm{in},k}+\frac{\Delta I_{L,k,\mathrm{pp}}}{2}}.
+\]
+The average inductor current equals input current in this boost approximation.
+For F1 these equations give $1.1850\ \mathrm{A}$ peak-to-peak and
+$8.8125\ \mathrm{A}$ peak. The CCM assumption requires the valley current
+$I_{\mathrm{in},k}-\Delta I_{L,k,\mathrm{pp}}/2$ to remain positive.
+
+For one converter considered alone, its capacitor supplies the load for
+$D_kT_s$ while the switch is on. The charge removed is
+$\Delta Q=\overline I_{\mathrm{out},k}D_kT_s$, hence
+\[
+ \boxed{\Delta V_{\mathrm{out},k,\mathrm{pp}}
+       \simeq\frac{\overline I_{\mathrm{out},k}D_k}{f_s C_{\mathrm{out},k}}}.
+\]
+For F1, using its own $48.84\ \mu\mathrm{F}$ gives $130.26\ \mathrm{mV}$.
+This is the familiar capacitive-ripple approximation, without ESR.
+\textbf{The combined routine does not add these individual ripple voltages.}
+It adds the output-current waveforms and integrates into the shared capacitance.
+Also, the individual inductor-ripple values printed above are currently
+\emph{not fed into} the combined bus-ripple model.
+
+\section{Build the output-current pulses}
+
+When the low-side switch is on, the boost inductor is being charged and its
+output path supplies no current in this model. When the switch turns off,
+the converter supplies the output for the remaining fraction $1-D_k$.
+
+Replace this output interval with a constant pulse of amplitude $A_k$.
+Its cycle average must equal the output current already calculated:
+\[
+ \overline I_{\mathrm{out},k}=A_k(1-D_k)
+ \quad\Longrightarrow\quad
+ \boxed{A_k=\frac{\overline I_{\mathrm{out},k}}{1-D_k}}.
+\]
+For these inputs, substitution gives a useful simplification:
+\[
+ A_k=\frac{\eta V_{\mathrm{in},k}I_{\mathrm{in},k}/V_{\mathrm{bus}}}
+               {V_{\mathrm{in},k}/V_{\mathrm{bus}}}
+     =\eta I_{\mathrm{in},k}=0.95\times8.22=7.809\ \mathrm{A}.
+\]
+Thus all five rectangular pulses have the same height, although their widths
+and average output powers differ. This equality is particular to the common
+input current and efficiency selected here.
+
+\textbf{This is an effective, power-consistent pulse, not a detailed physical
+inductor waveform.} A real CCM output interval follows the sloping inductor
+current. The use of ideal duty together with efficiency-scaled output power
+makes the effective height $7.809\ \mathrm{A}$ rather than $8.22\ \mathrm{A}$.
+A more detailed loss and switching model would need to reconcile both voltage
+and current waveforms physically.
+
+\section{Put each pulse at the requested phase}
+
+Use normalized time $x=t/T_s$, so one switching cycle runs from $0$ to $1$.
+Convert the phase angle into a fraction of a cycle:
+\[
+ p_k=\frac{\phi_k\bmod360^\circ}{360^\circ},\qquad
+ u_k(x)=(x-p_k)\bmod1.
+\]
+Here ``modulo 1'' means wrap back to the beginning after one complete cycle.
+Positive phase delays the low-side turn-on. The output pulse is
+\[
+ i_{\mathrm{out},k}(x)=
+ \begin{cases}
+  0, & 0\leq u_k(x)<D_k,\\
+  A_k, & D_k\leq u_k(x)<1.
+ \end{cases}
+\]
+Its start is $s_k=(p_k+D_k)\bmod1$ and its end is $p_k$ in the next local cycle.
+If the interval crosses the global cycle boundary, its current is already
+present at $x=0$. The code accounts for that; it does not discard the wrapped
+part of a pulse. At exactly zero duty the output is continuous.
+
+For the two cases, in panel order F1, BL, BR, R1, R2:
+\begin{align*}
+ \text{Aligned:}\quad &\boldsymbol\phi=(0,0,0,0,0)^\circ,\\
+ \text{Interleaved:}\quad &\boldsymbol\phi=(0,72,144,216,288)^\circ,\\
+ &\boldsymbol p=(0,0.2,0.4,0.6,0.8).
+\end{align*}
+Adjacent starts are $T_s/5=0.666667\ \mu\mathrm{s}$ apart.
+In the interleaved case the output-pulse starts are
+\[
+ \boldsymbol s=(0.42520833,\ 0.86354167,\ 0.06354167,\ 0.15125,\ 0.54770833).
+\]
+
+\section{Convert the current imbalance into bus voltage}
+
+Kirchhoff's current law at the bus gives
+\[
+ \boxed{i_C(x)=\sum_k i_{\mathrm{out},k}(x)-I_{\mathrm{load}}}.
+\]
+Positive $i_C$ charges the capacitor; negative $i_C$ discharges it. Since
+$i_C=C_{\mathrm{bus}}\,dv/dt$,
+\[
+ v(x)-v(0)=\frac{1}{f_s C_{\mathrm{bus}}}\int_0^x i_C(\xi)\,d\xi.
+\]
+The pulses only change at switching edges. Sort all those edges and integrate
+each constant-current interval exactly:
+\[
+ \boxed{v_{j+1}=v_j+
+        \frac{i_{C,j}(x_{j+1}-x_j)}{f_s C_{\mathrm{bus}}}}.
+\]
+There is no time-step approximation in this event-based integration of the
+rectangular-pulse model. Voltage is linear between edges, so its extrema occur
+at the interval boundaries. Finally,
+\[
+ \boxed{\Delta V_{\mathrm{bus,pp}}=\max_j(v_j)-\min_j(v_j)}.
+\]
+We set $v(0)=0$ merely as a voltage reference. These numbers are changes from
+the start of the cycle, not absolute bus voltage or necessarily changes from
+the mean. A vertical offset does not affect peak-to-peak ripple.
+
+Here $f_s C_{\mathrm{bus}}=300000\times244.2\times10^{-6}=73.26$.
+For convenient table arithmetic,
+\[
+ \Delta v_j\ [\mathrm{mV}]
+ =\frac{1000}{73.26}\,i_{C,j}\ [\mathrm{A}]\,(x_{j+1}-x_j).
+\]
+
+\section{Worked case: all five phases aligned}
+
+At the start of the cycle every switch is on, so no converter supplies the
+output. The capacitor initially supplies the entire $15.21778875\ \mathrm{A}$.
+F1 starts supplying current first, followed by R1, then BL and BR together,
+then R2. All arithmetic below uses unrounded input values.
+
+\begin{center}
+\small
+\begin{tabular}{rrlrr}
+\toprule
+$x_j$ & $x_{j+1}$ & Supplying output & $i_C$ (A) & $v_{j+1}$ (mV)\\
+\midrule
+0.000000 & 0.425208 & None & -15.217789 & -88.325561\\
+0.425208 & 0.551250 & F1 & -7.408789 & -101.072163\\
+0.551250 & 0.663542 & F1, R1 & 0.400211 & -100.458726\\
+0.663542 & 0.747708 & F1, BL, BR, R1 & 16.018211 & -82.055785\\
+0.747708 & 1.000000 & All five & 23.827211 & 0.000000\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For example, the first interval gives
+\[
+ \Delta v_0=\frac{-15.21778875\times0.4252083333}{73.26}
+           =-0.088325561\ \mathrm{V}.
+\]
+The second interval removes another $12.746602\ \mathrm{mV}$. After R1 begins
+supplying current, the two active pulses supply $2\times7.809=15.618\ \mathrm{A}$,
+slightly above the load, and the capacitor starts charging again. Therefore
+\[
+ \Delta V_{\mathrm{pp}}=0-(-101.072163)=101.072163\ \mathrm{mV}.
+\]
+
+\section{Worked case: 72-degree spacing}
+
+At the global start of this cycle, BL is already in the output interval that
+began in the previous cycle. Throughout this example, between one and three
+converters supply the output. With $n$ active pulses,
+\[
+ i_C=n(7.809)-15.21778875\ \mathrm{A}.
+\]
+One pulse gives $-7.40878875\ \mathrm{A}$, two give
+$+0.40021125\ \mathrm{A}$, and three give $+8.20921125\ \mathrm{A}$.
+The capacitor spends much of the cycle very close to current balance.
+
+\begin{center}
+\small
+\begin{tabular}{rrlrr}
+\toprule
+$x_j$ & $x_{j+1}$ & Supplying output & $i_C$ (A) & $v_{j+1}$ (mV)\\
+\midrule
+0.000000 & 0.063542 & BL & -7.408789 & -6.425973\\
+0.063542 & 0.151250 & BL, BR & 0.400211 & -5.946832\\
+0.151250 & 0.200000 & BL, BR, R1 & 8.209211 & -0.484110\\
+0.200000 & 0.400000 & BR, R1 & 0.400211 & 0.608468\\
+0.400000 & 0.425208 & R1 & -7.408789 & -1.940852\\
+0.425208 & 0.547708 & F1, R1 & 0.400211 & -1.271648\\
+0.547708 & 0.600000 & F1, R1, R2 & 8.209211 & 4.587939\\
+0.600000 & 0.800000 & F1, R2 & 0.400211 & 5.680516\\
+0.800000 & 0.863542 & F1 & -7.408789 & -0.745457\\
+0.863542 & 1.000000 & F1, BL & 0.400211 & 0.000000\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The minimum is $-6.425973\ \mathrm{mV}$ and the maximum is
+$+5.680516\ \mathrm{mV}$. Thus
+\[
+ \Delta V_{\mathrm{pp}}=5.680516-(-6.425973)=12.106489\ \mathrm{mV}.
+\]
+The reduction, using unrounded results, is
+\[
+ 100\left(1-\frac{12.106489}{101.072163}\right)\%=88.02\%.
+\]
+The large reduction comes from shrinking the accumulated charge imbalance.
+It is not an assumption that five phases automatically divide ripple by five.
+
+\section{Why the combined ripple can be below one converter's ripple}
+
+The individual F1 result uses $48.84\ \mu\mathrm{F}$; the combined result uses
+$244.2\ \mu\mathrm{F}$. Those are different capacitor sizes. For $N$ identical,
+aligned converters, each contributing current $\overline I$ and capacitance
+$C$, the simple result is
+\[
+ \Delta V_{\mathrm{pp}}=\frac{N\overline I D}{f_s NC}
+                      =\frac{\overline I D}{f_s C}.
+\]
+Both current and capacitance increase together, so ripple need not increase.
+Our five channels also have different duties, so even aligned starts do not
+mean aligned output-pulse starts.
+
+For a fair phase comparison we keep $C_{\mathrm{bus}}$ identical in both cases.
+If the effective total were instead only $48.84\ \mu\mathrm{F}$, both combined
+results would be five times larger: approximately $505.36\ \mathrm{mV}$ aligned
+and $60.53\ \mathrm{mV}$ interleaved. The percentage reduction would be unchanged
+within this model.
+
+\section{What to trust, and what this calculation does not establish}
+
+The integration is exact for the stated rectangular-current model. The circuit
+model itself is approximate. In particular:
+\begin{itemize}
+ \item Actual inductor-current slopes can matter substantially when the
+ remaining combined ripple is small. The current model's bus result does not
+ depend on $L$, even though $L$ affects the individual inductor-ripple display.
+ \item ESR, ESL and switching edges introduce voltage ripple and spikes not
+ represented by charge integration into an ideal capacitor.
+ \item Battery impedance and capacitor placement determine where switching
+ current flows. An ideal voltage source directly across the bus would clamp
+ voltage ripple; a real battery and its wiring require an impedance model.
+ \item The assumed parallel capacitance and its effective value under voltage
+ bias must be checked against the hardware.
+ \item Low irradiance can invalidate CCM. This model does not calculate DCM
+ switching or reverse-current behaviour.
+ \item Equal spacing is the requested comparison, not an optimisation result.
+ With unequal duties, changing which panel receives each phase can change
+ ripple. No claim of an optimal phase assignment is made here.
+\end{itemize}
+
+Consequently, $88.02\%$ is a model prediction at these operating points, not a
+promised reduction on the real board.
+
+\section{How this maps to the code}
+
+\begin{description}
+ \item[\texttt{solar\_panels.py}] Scales input MPP current with irradiance.
+ \item[\texttt{converter.py}] Calculates duty, mean output current, inductor
+ ripple, peak current and the single-converter voltage-ripple estimate.
+ \item[\texttt{bus\_ripple.py}] Builds pulse start/end events, handles pulses
+ wrapping across the cycle boundary, integrates capacitor current between
+ sorted events and returns maximum minus minimum voltage.
+ \item[\texttt{calculator.py}] Supplies the same operating points, frequency
+ and capacitance to the zero-phase and 72-degree phase cases, then prints
+ their peak-to-peak ripple and percentage reduction.
+\end{description}
+
+Checks performed include the single-converter analytical result, cancellation
+for two equal 50\%-duty channels separated by $180^\circ$, cancellation for
+five equal 80\%-duty channels separated by $72^\circ$, invariance to a common
+phase shift, and comparison with independently sampled pulse waveforms.
+These check the mathematics and implementation, not the physical assumptions.
+
+\paragraph{Background reference.}
+Texas Instruments, \emph{Basic Calculation of a Boost Converter's Power Stage},
+SLVA372D, gives the single-converter inductor and output-capacitance relations:
+\url{https://www.ti.com/lit/an/slva372d/slva372d.pdf}.
+The event tables and combined-bus results above are derived from this project's
+stated pulse model, not quoted from that application note.
+
+\end{document}

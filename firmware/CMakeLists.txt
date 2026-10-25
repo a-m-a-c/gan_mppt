@@ -61,6 +61,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/command.c
     Src/app/stream.c
     Src/app/modes/mode_auto.c
+    Src/app/modes/mode_measure.c
+    Src/drivers/measure_io.c
     Src/app/modes/mode_single_ch_mppt.c
     Src/app/modes/mode_single_ch_5_mppt.c
     Src/app/modes/mode_dual_ch_mppt.c

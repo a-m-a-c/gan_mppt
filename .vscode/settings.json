@@ -13,6 +13,46 @@
     "editor.tabSize": 4
   },
 
+  "latex-workshop.latex.outDir": "%DIR%/out",
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "pdflatex (two passes)",
+      "tools": ["pdflatex", "pdflatex"]
+    },
+    {
+      "name": "latexmk",
+      "tools": ["latexmk"]
+    }
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "pdflatex",
+      "command": "pdflatex",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        "-output-directory=%OUTDIR%",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-pdf",
+        "-outdir=%OUTDIR%",
+        "%DOC%"
+      ]
+    }
+  ],
+
   // Use the CMake + Ninja + ARM GCC that ship with STM32CubeCLT.
   // These are on the machine PATH already, so this injection is redundant --
   // it is kept deliberately to pin CMake Tools' configure and build steps to

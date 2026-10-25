@@ -31,6 +31,7 @@ OPCODES = {
     "dualmppt": 0x0A,
     "ch5mppt": 0x0B,
     "auto": 0x0C,
+    "measure": 0x0D,
 }
 
 
@@ -206,6 +207,7 @@ def pick_port() -> str | None:
 HELP = """commands
   reset | clearfault | stop                        send a system command
   auto | chmppt | ch5mppt | dualmppt | ivsweep        run a mode
+  measure                                         run measurement capture (use measure.py)
   bypass_on | bypass_off                          control the diode bypass
   raw <op-hex> [byte-hex ...]                      send an arbitrary frame
   watch                                            toggle telemetry printing

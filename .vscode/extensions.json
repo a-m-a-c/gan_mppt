@@ -2,6 +2,7 @@
   "recommendations": [
     "ms-vscode.cmake-tools",
     "marus25.cortex-debug",
-    "ms-vscode.cpptools"
+    "ms-vscode.cpptools",
+    "James-Yu.latex-workshop"
   ]
 }

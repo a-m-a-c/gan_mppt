@@ -2,6 +2,7 @@
 #include <stdbool.h>
 
 #include "mode_auto.h"
+#include "mode_measure.h"
 #include "mode_single_ch_iv_sweep.h"
 #include "mode_single_ch_mppt.h"
 #include "mode_single_ch_5_mppt.h"
@@ -17,6 +18,8 @@ mode_request_result_t mode_begin(mode_t mode) {
   switch (mode) {
     case MODE_AUTO:
       return mode_auto_begin();
+    case MODE_MEASURE:
+      return mode_measure_begin();
     case MODE_SINGLE_CH_IV_SWEEP:
       return mode_single_ch_iv_sweep_begin();
     case MODE_SINGLE_CH_MPPT:
@@ -38,6 +41,8 @@ mode_state_t mode_service(bool stop_request) {
   switch (active_mode) {
     case MODE_AUTO:
       return mode_auto_service(stopping);
+    case MODE_MEASURE:
+      return mode_measure_service(stopping);
     case MODE_SINGLE_CH_IV_SWEEP:
       return mode_single_ch_iv_sweep_service(stopping);
     case MODE_SINGLE_CH_MPPT:
