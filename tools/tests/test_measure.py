@@ -17,7 +17,30 @@ def packet(sequence=0, tick=1000, flags=measure.VALID, current=-125):
     return data[:-2] + binascii.crc_hqx(data[:-2], 0xFFFF).to_bytes(2, "little")
 
 
+def diagnostic(sequence=0, tick=1500, flags=7):
+    data = measure.DIAGNOSTIC_RECORD.pack(measure.DIAGNOSTIC_MAGIC, sequence, tick,
+                                         23900, -80, 21025, 120, 12, 31, flags, 24000, 0, 0)
+    return data[:-2] + binascii.crc_hqx(data[:-2], 0xFFFF).to_bytes(2, "little")
+
+
 class ProtocolTests(unittest.TestCase):
+    def test_mixed_diagnostics_split_frames_and_crc_recovery(self):
+        parser = measure.Parser()
+        corrupt = bytearray(diagnostic(1, 2500))
+        corrupt[20] ^= 1
+        result = []
+        for byte in packet() + diagnostic() + bytes(corrupt) + packet(1,3000) + diagnostic(2,3500):
+            result.extend(parser.feed(bytes([byte])))
+        normal = [r for r in result if not r.get('_diagnostic')]
+        diag = [r for r in result if r.get('_diagnostic')]
+        self.assertEqual([r['sequence'] for r in normal],[0,1])
+        self.assertEqual([r['sequence'] for r in diag],[0,2])
+        self.assertEqual(diag[0]['error_mv'],-80)
+        self.assertEqual(diag[0]['power_mw'],21025)
+        self.assertEqual(parser.crc_errors,1)
+        timeline=measure.Timeline()
+        self.assertEqual([timeline.stamp(r,0)['sequence_gap'] for r in diag],[0,1])
+
     def test_split_frames_noise_and_signed_current(self):
         parser = measure.Parser()
         out = []
@@ -73,7 +96,7 @@ class ProtocolTests(unittest.TestCase):
                 self.commands.append(data[0])
                 if data[0] == measure.console.OPCODES["measure"]:
                     self.running = True
-                    self.data.extend(packet())
+                    self.data.extend(packet() + diagnostic())
                 elif self.running and data[0] == measure.console.OPCODES["stop"]:
                     self.data.extend(packet(1, 2000, measure.END))
             def read(self, size):
@@ -86,9 +109,18 @@ class ProtocolTests(unittest.TestCase):
             output = Path(directory) / "capture.csv"
             with patch.object(measure.serial, "Serial", return_value=link):
                 summary = measure.record("mock", 0.01, output)
-            self.assertEqual(link.commands, [0x03, 0x0D, 0x03])
+            self.assertEqual(link.commands, [0x03, 0x0D, 0x11, 0x03])
+            self.assertIn("start_command_s", summary)
             self.assertEqual(summary["samples"], 1)
             self.assertTrue(summary["end_received"])
+            self.assertEqual(summary['mppt_records'],1)
+            self.assertEqual(summary['mppt_sequence_gaps'],0)
+            with output.with_name('capture_mppt.csv').open() as fh:
+                diagnostics=list(csv.DictReader(fh))
+            self.assertEqual(len(diagnostics),1)
+            self.assertEqual(diagnostics[0]['target_mv'],'23900')
+            self.assertEqual(diagnostics[0]['direction'],'-1')
+            self.assertEqual(diagnostics[0]['updated'],'True')
             with output.open() as fh:
                 rows = list(csv.DictReader(fh))
             self.assertEqual(len(rows), 2)

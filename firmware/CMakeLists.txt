@@ -31,6 +31,10 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
+# Override CubeMX's size-optimized Release flags after toolchain loading.
+set(CMAKE_C_FLAGS_RELEASE "-O3 -g0")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g0")
+
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
@@ -62,6 +66,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/stream.c
     Src/app/modes/mode_auto.c
     Src/app/modes/mode_measure.c
+    Src/app/modes/mode_measure_iv_sweep.c
+    Src/app/modes/mode_manual_duty.c
     Src/drivers/measure_io.c
     Src/app/modes/mode_single_ch_mppt.c
     Src/app/modes/mode_single_ch_5_mppt.c

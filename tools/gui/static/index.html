@@ -93,6 +93,19 @@
 
 <footer>
   <section class="pane">
+    <div class="pane-head"><h2 class="label">Manual duty — channel A</h2></div>
+    <form id="manual-form" class="controls" autocomplete="off">
+      <button id="manual-start" type="button" disabled>Start at 0%</button>
+      <label>Duty <input id="manual-duty" type="number" min="0" max="850" step="1" value="0" required></label>
+      <button id="manual-apply" type="submit" disabled>Apply</button>
+      <button id="manual-stop" class="stop" type="button" disabled>Stop</button>
+    </form>
+    <div class="controls"><span id="manual-status">Inactive</span>
+      <span id="manual-requested">Requested: —</span><span id="manual-applied">Applied: —</span></div>
+    <p id="manual-fault" class="hint manual-hint" role="status"></p>
+    <p class="hint manual-hint">Stop any other mode first. 500 = 50.0%. Maximum 850 = 85.0%. Ramps 0.1% every 100 ms in either direction. Stop turns PWM off immediately.</p>
+  </section>
+  <section class="pane">
     <div class="pane-head">
       <h2 class="label">Command</h2>
       <span class="spacer"></span>

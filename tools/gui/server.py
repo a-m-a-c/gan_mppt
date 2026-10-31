@@ -17,6 +17,9 @@ import argparse
 import asyncio
 import contextlib
 import hashlib
+import csv
+import json
+from datetime import datetime, timezone
 import sys
 import threading
 import webbrowser
@@ -59,9 +62,25 @@ class LiveState:
         self.sets = 0
         self.dropped = 0
         self.now = 0.0
+        self.manual_target: int | None = None
+        self.manual_time = -1.0
+        self.manual_fault: dict | None = None
+        self.manual_history: deque[dict] = deque(maxlen=1000) # Five seconds at 200 sets/s.
+        self.manual_events: deque[dict] = deque()
 
     def feed(self, name: str, value: int | None, t: float) -> None:
         with self.lock:
+            if name == "manual_duty_fault":
+                fault = console.decode_manual_fault(value) if value is not None else None
+                if fault is not None and fault != self.manual_fault:
+                    self.manual_events.append({"fault": fault, "history": list(self.manual_history),
+                                               "received_utc": datetime.now(timezone.utc).isoformat()})
+                self.manual_fault = fault
+                return
+            if name == "manual_duty_target":
+                self.manual_target = value if value is not None and 0 <= value <= console.MANUAL_DUTY_MAX else None
+                self.manual_time = t
+                return
             snapshot = self.assembler.feed(name, value)
             if snapshot is None:
                 if name == console.STREAM_LAST:
@@ -69,6 +88,7 @@ class LiveState:
                 return
             self.latest = snapshot
             self.now = t
+            self.manual_history.append({"t_s": t, **snapshot})
             self.sets += 1
             for der in self.derived:
                 values = [self.latest.get(k) for k in der.inputs]
@@ -91,7 +111,7 @@ class LiveState:
 
     def drain(self) -> dict | None:
         with self.lock:
-            if not self.ts and not any(self.iv.values()):
+            if not self.ts and not any(self.iv.values()) and not self.manual_events:
                 return None
             payload = {
                 "type": "data",
@@ -101,7 +121,11 @@ class LiveState:
                            for key in _series_keys(self.ts)},
                 "iv": {ch: list(points) for ch, points in self.iv.items() if points},
                 "latest": dict(self.latest),
+                "manual_duty": {"target": self.manual_target if abs(self.now - self.manual_time) < 0.5 else None,
+                                "fault": self.manual_fault},
+                "manual_events": list(self.manual_events),
             }
+            self.manual_events.clear()
             self.ts.clear()
             for points in self.iv.values():
                 points.clear()
@@ -118,6 +142,11 @@ class LiveState:
             self.sets = 0
             self.dropped = 0
             self.now = 0.0
+            self.manual_target = None
+            self.manual_time = -1.0
+            self.manual_fault = None
+            self.manual_history.clear()
+            self.manual_events.clear()
 
     def counters(self) -> dict:
         with self.lock:
@@ -191,6 +220,31 @@ class Hub:
     def send_raw(self, op: int, payload: bytes) -> None:
         frame = self.link.send_raw(op, payload)
         self.log(f"sent raw  {frame.hex(' ')}", "tx")
+
+    def set_manual_duty(self, value: int) -> None:
+        payload = console.manual_duty_payload(value)
+        if self.run is not None and not self.run.finished.is_set():
+            raise link_mod.LinkError("stop the running sequence before changing manual duty")
+        self.link.send_raw(console.MANUAL_DUTY_SET_OPCODE, payload)
+        self.log(f"requested manual duty {value} ({value / 10:.1f}%)", "tx")
+
+    def save_manual_faults(self, data: dict) -> None:
+        for event in data.pop("manual_events", []):
+            self.log(event["fault"]["message"], "error")
+            try:
+                folder = capture.CAPTURE_DIR / (datetime.now().strftime("%Y%m%d-%H%M%S-%f") + "_manual_duty_fault")
+                folder.mkdir(parents=True)
+                rows = event.pop("history")
+                event["history_note"] = "Normal telemetry received before fault status; not synchronized to the fault. Fault value/duty are frozen in firmware."
+                (folder / "fault.json").write_text(json.dumps(event, indent=2), encoding="utf-8")
+                if rows:
+                    with (folder / "history.csv").open("w", newline="") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+                        writer.writeheader()
+                        writer.writerows(rows)
+                self.log(f"saved manual fault to {folder.relative_to(capture.REPO_ROOT)}", "ok")
+            except OSError as exc:
+                self.log(f"could not save manual fault: {exc}", "error")
 
 
     def start_sequence(self, name: str) -> None:
@@ -279,10 +333,9 @@ async def pump_loop() -> None:
     while True:
         await asyncio.sleep(1.0 / PUMP_HZ)
         tick += 1
-        if not hub.sockets:
-            continue
         data = hub.live.drain()
         if data is not None:
+            hub.save_manual_faults(data)
             await broadcast(data)
         logs = hub.drain_logs()
         if logs:
@@ -364,6 +417,8 @@ async def handle(socket: WebSocket, message: dict) -> None:
     try:
         if kind == "command":
             hub.send(str(message.get("verb", "")))
+        elif kind == "manual_duty_set":
+            hub.set_manual_duty(message.get("duty"))
         elif kind == "raw":
             op = int(str(message.get("op", "")), 16)
             payload = bytes(int(b, 16) for b in str(message.get("payload", "")).split())

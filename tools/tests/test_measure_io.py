@@ -79,6 +79,7 @@ class FirmwareLifecycleTests(unittest.TestCase):
             binary = temp / "measure_io_test.exe"
             subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
                             "-I", str(temp), "-I", str(root / "firmware/Inc/drivers"),
+                            "-I", str(root / "firmware/Inc/app/control/controllers"),
                             str(root / "tools/tests/measure_io_harness.c"), "-o", str(binary)],
                            check=True, capture_output=True, text=True)
             result = subprocess.run([str(binary)], check=True, capture_output=True, text=True, timeout=10)

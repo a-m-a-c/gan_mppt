@@ -1,0 +1,87 @@
+{
+  "identity": "Siglent Technologies,SPS5162X,SPS62ABD7R0750,3.1.1.8R1",
+  "resource": "USB0::0xF4EC::0x1452::SPS62ABD7R0750::INSTR",
+  "voltage_limit_v": 35.0,
+  "steps": [
+    {
+      "time_s": 0.0,
+      "current_a": 0.5
+    },
+    {
+      "time_s": 30.0,
+      "current_a": 1.0
+    },
+    {
+      "time_s": 60.0,
+      "current_a": 1.5
+    },
+    {
+      "time_s": 90.0,
+      "current_a": 2.0
+    },
+    {
+      "time_s": 120.0,
+      "current_a": 2.5
+    },
+    {
+      "time_s": 150.0,
+      "current_a": 3.0
+    },
+    {
+      "time_s": 180.0,
+      "current_a": 3.5
+    },
+    {
+      "time_s": 210.0,
+      "current_a": 4.0
+    },
+    {
+      "time_s": 240.0,
+      "current_a": 4.5
+    },
+    {
+      "time_s": 270.0,
+      "current_a": 5.0
+    },
+    {
+      "time_s": 300.0,
+      "current_a": 5.5
+    },
+    {
+      "time_s": 330.0,
+      "current_a": 6.0
+    },
+    {
+      "time_s": 360.0,
+      "current_a": 6.5
+    },
+    {
+      "time_s": 390.0,
+      "current_a": 7.0
+    },
+    {
+      "time_s": 420.0,
+      "current_a": 7.5
+    },
+    {
+      "time_s": 450.0,
+      "current_a": 8.0
+    }
+  ],
+  "final_hold_s": 30.0,
+  "max_lateness_s": 0.5,
+  "limits": {
+    "current_a": 8.0,
+    "voltage_v": 35.0
+  },
+  "samples": 16,
+  "complete": true,
+  "output_off_confirmed": true,
+  "timestamp_note": "Host timestamps; sequential supply queries, not synchronized ADC samples.",
+  "started_utc": "2026-10-30T10:35:41.299935+00:00",
+  "profile_start_s": 2.1531132000964135,
+  "shared_capture_clock": true,
+  "output_enabled_s": 2.2396668000146747,
+  "output_off_s": 482.1742670000531,
+  "finished_utc": "2026-10-30T10:43:41.321106+00:00"
+}

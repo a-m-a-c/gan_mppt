@@ -5,8 +5,9 @@
 #include "transport.h"
 #include "main.h"
 #include "serial.h"
+#include "mode_manual_duty.h"
 
-#define NUM_COMMAND_SLOTS 12
+#define NUM_COMMAND_SLOTS 14
 
 typedef enum {
   OP_SYSTEM_COMMAND_NONE = 0x00,
@@ -20,7 +21,11 @@ typedef enum {
   OP_SYSTEM_COMMAND_RUN_DUAL_CH_MPPT = 0x0A,
   OP_SYSTEM_COMMAND_RUN_SINGLE_CH_5_MPPT = 0x0B,
   OP_SYSTEM_COMMAND_RUN_AUTO = 0x0C,
-  OP_SYSTEM_COMMAND_RUN_MEASURE = 0x0D
+  OP_SYSTEM_COMMAND_RUN_MEASURE = 0x0D,
+  OP_SYSTEM_COMMAND_RUN_MEASURE_IV_SWEEP = 0x0E,
+  OP_SYSTEM_COMMAND_RUN_MANUAL_DUTY = 0x0F,
+  OP_MANUAL_DUTY_SET = 0x10,
+  OP_SYSTEM_COMMAND_START_MEASURE = 0x11
 } serial_opcode_t;
 
 static mode_t pending_mode;
@@ -29,6 +34,18 @@ static bool system_command_received_register[NUM_COMMAND_SLOTS];
 
 static void accept_serial_command(transport_frame_t *frame) {
   switch (frame->op) {
+    case OP_SYSTEM_COMMAND_START_MEASURE:
+      if (frame->len == 0U && !system_command_received_register[SYSTEM_COMMAND_STOP])
+        system_command_received_register[SYSTEM_COMMAND_START_MEASURE] = true;
+      break;
+    case OP_SYSTEM_COMMAND_RUN_MANUAL_DUTY:
+      if (frame->len == 0U && !system_command_received_register[SYSTEM_COMMAND_STOP])
+        pending_mode = MODE_MANUAL_DUTY;
+      break;
+    case OP_MANUAL_DUTY_SET:
+      if (frame->len == 2U && !system_command_received_register[SYSTEM_COMMAND_STOP])
+        (void)mode_manual_duty_set((uint16_t)frame->data[0] | ((uint16_t)frame->data[1] << 8));
+      break;
     case OP_SYSTEM_COMMAND_RESET:
       system_command_received_register[SYSTEM_COMMAND_RESET] = true;
       break;
@@ -46,6 +63,10 @@ static void accept_serial_command(transport_frame_t *frame) {
     case OP_SYSTEM_COMMAND_RUN_MEASURE:
       system_command_received_register[SYSTEM_COMMAND_RUN_MEASURE] = true;
       pending_mode = MODE_MEASURE;
+      break;
+    case OP_SYSTEM_COMMAND_RUN_MEASURE_IV_SWEEP:
+      system_command_received_register[SYSTEM_COMMAND_RUN_MEASURE_IV_SWEEP] = true;
+      pending_mode = MODE_MEASURE_IV_SWEEP;
       break;
     case OP_SYSTEM_COMMAND_RUN_SINGLE_CH_MPPT:
       system_command_received_register[SYSTEM_COMMAND_RUN_SINGLE_CH_MPPT] = true;

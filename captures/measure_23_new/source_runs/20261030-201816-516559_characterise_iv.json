@@ -1,0 +1,130 @@
+{
+  "complete": true,
+  "output_off_confirmed": true,
+  "currents_a": [
+    6.5,
+    7.0,
+    7.5,
+    8.0
+  ],
+  "supply_identity": "Siglent Technologies,SPS5162X,SPS62ABD7R0750,3.1.1.8R1",
+  "supply_resource": "USB0::0xF4EC::0x1452::SPS62ABD7R0750::INSTR",
+  "voltage_limit_v": 35,
+  "settle_s": 2,
+  "off_seconds": 5.0,
+  "timeout_s": 95,
+  "notes": "",
+  "requested_setup": {
+    "frequency_hz": 600000,
+    "maximum_duty_pct": 70.0,
+    "direction": "up",
+    "step_pct": 0.1,
+    "step_period_ms": 100
+  },
+  "sweeps": [
+    {
+      "index": 1,
+      "source_current_a": 6.5,
+      "complete": true,
+      "csv": "sweep_01/measure_iv_sweep.csv",
+      "off_pause_start_monotonic_s": 1359763.255639,
+      "off_pause_end_monotonic_s": 1359768.2560073,
+      "before": {
+        "timestamp_utc": "2026-10-30T09:18:24.264442+00:00",
+        "voltage_limit_v": 35.0,
+        "current_limit_a": 6.5,
+        "output_enabled": true,
+        "voltage_v": 31.162975,
+        "current_a": 6.494634,
+        "power_w": 202.390076,
+        "mode": "CC"
+      },
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "source_errors": []
+    },
+    {
+      "index": 2,
+      "source_current_a": 7.0,
+      "complete": true,
+      "csv": "sweep_02/measure_iv_sweep.csv",
+      "off_pause_start_monotonic_s": 1359843.6403276,
+      "off_pause_end_monotonic_s": 1359848.6404087,
+      "before": {
+        "timestamp_utc": "2026-10-30T09:19:44.648148+00:00",
+        "voltage_limit_v": 35.0,
+        "current_limit_a": 7.0,
+        "output_enabled": true,
+        "voltage_v": 31.19836,
+        "current_a": 6.994918,
+        "power_w": 218.227921,
+        "mode": "CC"
+      },
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 15,
+        "crc_errors": 1,
+        "firmware_dropped": 0,
+        "discarded_bytes": 39
+      },
+      "source_errors": []
+    },
+    {
+      "index": 3,
+      "source_current_a": 7.5,
+      "complete": true,
+      "csv": "sweep_03/measure_iv_sweep.csv",
+      "off_pause_start_monotonic_s": 1359924.0561386,
+      "off_pause_end_monotonic_s": 1359929.0561939,
+      "before": {
+        "timestamp_utc": "2026-10-30T09:21:05.068725+00:00",
+        "voltage_limit_v": 35.0,
+        "current_limit_a": 7.5,
+        "output_enabled": true,
+        "voltage_v": 31.257715,
+        "current_a": 7.49473,
+        "power_w": 234.26561,
+        "mode": "CC"
+      },
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 28
+      },
+      "source_errors": []
+    },
+    {
+      "index": 4,
+      "source_current_a": 8.0,
+      "complete": true,
+      "csv": "sweep_04/measure_iv_sweep.csv",
+      "off_pause_start_monotonic_s": 1360004.9873553,
+      "off_pause_end_monotonic_s": 1360009.9901101,
+      "before": {
+        "timestamp_utc": "2026-10-30T09:22:25.994651+00:00",
+        "voltage_limit_v": 35.0,
+        "current_limit_a": 8.0,
+        "output_enabled": true,
+        "voltage_v": 31.326109,
+        "current_a": 7.994525,
+        "power_w": 250.435944,
+        "mode": "CC"
+      },
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "source_errors": []
+    }
+  ]
+}

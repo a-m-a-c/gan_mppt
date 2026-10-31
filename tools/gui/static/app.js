@@ -26,6 +26,11 @@ const state = {
   now: 0,
   wall: performance.now(),
   connected: false,
+  manualTarget: null,
+  manualApplied: null,
+  manualSeen: 0,
+  manualFault: null,
+  serial: false,
   sequence: { state: 'idle' },
   history: [],
   historyAt: 0,
@@ -75,6 +80,8 @@ function openSocket() {
   socket = new WebSocket(`ws://${location.host}/ws`);
   socket.onmessage = (event) => onMessage(JSON.parse(event.data));
   socket.onclose = () => {
+    state.connected = false;
+    updateManualDuty();
     setPill('err', 'server gone');
     setTimeout(openSocket, 1500);
   };
@@ -526,6 +533,11 @@ function buildSequences(sequences) {
 }
 
 function onData(msg) {
+  state.manualFault = msg.manual_duty?.fault ?? null;
+  state.manualTarget = msg.manual_duty?.target ?? null;
+  state.manualApplied = msg.latest.duty ?? null;
+  state.manualSeen = performance.now();
+  updateManualDuty();
   state.now = msg.now;
   state.wall = performance.now();
   if (msg.ts.length) {
@@ -566,6 +578,7 @@ function updateReadouts(latest) {
 }
 
 function onStatus(msg) {
+  state.serial = msg.kind === 'serial';
   state.connected = msg.connected;
   $('connect').disabled = msg.connected;
   $('disconnect').disabled = !msg.connected;
@@ -576,7 +589,22 @@ function onStatus(msg) {
       `${msg.stats.resyncs} resynced   ${msg.stats.uptime.toFixed(0)} s`
     : (msg.error || '');
   state.sequence = msg.sequence || { state: 'idle' };
+  updateManualDuty();
   renderRunState();
+}
+
+function updateManualDuty() {
+  const connected = state.connected && state.serial;
+  const fresh = connected && performance.now() - state.manualSeen < 1000;
+  const active = fresh && state.manualTarget != null;
+  const busy = state.sequence.state === 'running';
+  $('manual-start').disabled = !connected || active || busy;
+  $('manual-apply').disabled = !active || busy;
+  $('manual-stop').disabled = !connected;
+  $('manual-fault').textContent = state.manualFault ? `Last stop: ${state.manualFault.message}` : '';
+  $('manual-status').textContent = !connected ? 'Disconnected' : !fresh ? 'Waiting for telemetry' : active ? 'Active' : 'Inactive';
+  $('manual-requested').textContent = `Requested: ${active ? `${state.manualTarget} (${(state.manualTarget / 10).toFixed(1)}%)` : '—'}`;
+  $('manual-applied').textContent = `Applied: ${fresh && state.manualApplied != null ? `${state.manualApplied} (${(state.manualApplied / 10).toFixed(1)}%)` : '—'}`;
 }
 
 function setPill(kind, text) {
@@ -689,6 +717,8 @@ function localLog(text, level = 'info') {
 }
 
 const LOCAL_HELP = [
+  '  manual_duty                   start channel A at 0%',
+  '  duty <0..850>                 ramp to a manual duty target',
   'verbs come from console.OPCODES; anything else here is local:',
   '  raw <op-hex> [byte-hex ...]   send an arbitrary frame',
   '  clear [iv | series | all]     empty a plot; both if not named',
@@ -705,7 +735,12 @@ function runCommand(line) {
   const args = parts.slice(1);
   if (!verb) return;
 
-  if (state.schema && state.schema.commands.includes(verb)) {
+  if (verb === 'duty') {
+    const duty = Number(args[0]);
+    if (args.length !== 1 || !Number.isInteger(duty) || duty < 0 || duty > 850)
+      return localLog('usage: duty <0..850> (500 = 50.0%)', 'error');
+    send({ type: 'manual_duty_set', duty });
+  } else if (state.schema && state.schema.commands.includes(verb)) {
     send({ type: 'command', verb });
   } else if (verb === 'raw') {
     if (!args.length) return localLog('usage: raw <op-hex> [byte-hex ...]', 'error');
@@ -861,6 +896,14 @@ function tick() {
 }
 
 function boot() {
+  $('manual-start').onclick = () => send({ type: 'command', verb: 'manual_duty' });
+  $('manual-stop').onclick = () => send({ type: 'command', verb: 'stop' });
+  $('manual-form').onsubmit = (event) => {
+    event.preventDefault();
+    if (!$('manual-form').reportValidity() || $('manual-apply').disabled) return;
+    send({ type: 'manual_duty_set', duty: Number($('manual-duty').value) });
+  };
+  setInterval(updateManualDuty, 250);
   loadPrefs();
   applyPrefsToInputs();
   buildTabs();

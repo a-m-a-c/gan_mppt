@@ -1,4 +1,6 @@
 {
+  // Enables this project's user-level build/flash keyboard shortcuts.
+  "ganMppt.buildShortcuts": true,
   // Two-space indentation, per the conventions in .agents/workflow.md.
   // detectIndentation must be off: left on, VS Code infers the width from
   // whatever the open file happens to contain and silently overrides tabSize,

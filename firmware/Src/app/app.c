@@ -19,6 +19,8 @@
 #include "serial.h"
 #include "diode_bypass.h"
 #include "mode_measure.h"
+#include "mode_manual_duty.h"
+#include "mode_measure_iv_sweep.h"
 #include "measure_io.h"
 
 volatile bool error_flag = false;
@@ -152,10 +154,18 @@ void app_loop(void) {
     }
   }
 
+  if (sys.mode == MODE_MANUAL_DUTY && sys.state != SYSTEM_STATE_ACTIVE) {
+    mode_manual_duty_end();
+    sys.mode = MODE_NONE;
+  }
   analog_service();
   status_service();
   if (measure_io_owned()) {
-    if (sys.state != SYSTEM_STATE_ACTIVE || sys.mode != MODE_MEASURE) mode_measure_end();
+    if (sys.state != SYSTEM_STATE_ACTIVE ||
+        (sys.mode != MODE_MEASURE && sys.mode != MODE_MEASURE_IV_SWEEP)) {
+      if (sys.mode == MODE_MEASURE_IV_SWEEP) mode_measure_iv_sweep_end();
+      else mode_measure_end();
+    }
     measure_io_service();
   } else {
     stream_service();

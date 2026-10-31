@@ -7,9 +7,10 @@
 #include "stream.h"
 #include "system.h"
 #include "pwm.h"
+#include "mppt_v1.h"
 #include <string.h>
 
-#define SAMPLE_PERIOD_US 1000U
+#define SAMPLE_PERIOD_US 600U
 #define TRANSFER_TIMEOUT_MS 10U
 #define STALE_TIMEOUT_MS 30U
 #define DRAIN_TIMEOUT_MS 250U
@@ -31,6 +32,7 @@ static bool failed;
 static bool sampled;
 static bool final_queued;
 static bool tx_active;
+static uint16_t capture_flags;
 static uint32_t channel;
 static ina228_t devices[2];
 static uint16_t saved_adc[2];
@@ -50,7 +52,18 @@ static uint32_t last_cycles;
 static uint64_t elapsed_cycles;
 static uint32_t cycles_per_us;
 static chan_telem_t working;
-static measure_sample_t queue[QUEUE_SIZE];
+typedef struct {
+  bool diagnostic;
+  union {
+    measure_sample_t sample;
+    struct {
+      mppt_status_t status;
+      uint32_t sequence, time_us, dropped;
+    } mppt;
+  };
+} queued_record_t;
+static queued_record_t queue[QUEUE_SIZE];
+static uint32_t diagnostic_sequence, diagnostic_dropped;
 static uint8_t head;
 static uint8_t tail;
 static uint8_t count;
@@ -87,19 +100,36 @@ static void transmit_service(void) {
   if (huart5.gState != HAL_UART_STATE_READY) return;
   tx_active = false;
   if (count == 0U) return;
-  const measure_sample_t *s = &queue[tail];
-  memcpy(tx, "MPM1", 4U);
-  put32(tx + 4, s->sequence);
-  put32(tx + 8, s->time_us);
-  put32(tx + 12, s->span_us);
-  put32(tx + 16, (uint32_t)s->vin_mv);
-  put32(tx + 20, (uint32_t)s->iin_ma);
-  put32(tx + 24, (uint32_t)s->vout_mv);
-  put32(tx + 28, (uint32_t)s->iout_ma);
-  put16(tx + 32, s->duty);
-  put16(tx + 34, s->flags);
-  put32(tx + 36, s->dropped);
-  put32(tx + 40, s->errors);
+  const queued_record_t *record = &queue[tail];
+  if (record->diagnostic) {
+    const mppt_status_t *s = &record->mppt.status;
+    memcpy(tx, "MPD1", 4U);
+    put32(tx + 4, record->mppt.sequence);
+    put32(tx + 8, record->mppt.time_us);
+    put32(tx + 12, s->target_mv);
+    put32(tx + 16, (uint32_t)s->error_mv);
+    put32(tx + 20, (uint32_t)(int32_t)(s->power_w * 1000.0f));
+    put32(tx + 24, s->age_ms);
+    put32(tx + 28, s->decisions);
+    put16(tx + 32, s->window_samples > UINT16_MAX ? UINT16_MAX : (uint16_t)s->window_samples);
+    put16(tx + 34, s->flags | (uint16_t)(channel << 8));
+    put32(tx + 36, s->compared_target_mv);
+    put32(tx + 40, record->mppt.dropped);
+  } else {
+    const measure_sample_t *s = &record->sample;
+    memcpy(tx, "MPM1", 4U);
+    put32(tx + 4, s->sequence);
+    put32(tx + 8, s->time_us);
+    put32(tx + 12, s->span_us);
+    put32(tx + 16, (uint32_t)s->vin_mv);
+    put32(tx + 20, (uint32_t)s->iin_ma);
+    put32(tx + 24, (uint32_t)s->vout_mv);
+    put32(tx + 28, (uint32_t)s->iout_ma);
+    put16(tx + 32, s->duty);
+    put16(tx + 34, s->flags);
+    put32(tx + 36, s->dropped);
+    put32(tx + 40, s->errors);
+  }
   put16(tx + 44, crc16(tx, 44U));
   if (HAL_UART_Transmit_IT(&huart5, tx, sizeof(tx)) == HAL_OK) {
     tail = (tail + 1U) % QUEUE_SIZE;
@@ -119,7 +149,7 @@ static void enqueue(bool final, bool restore_failed) {
     .vout_mv = final ? 0 : (int32_t)(working.vout_v * 1000.0f),
     .iout_ma = final ? 0 : (int32_t)(working.iout_a * 1000.0f),
     .duty = ch->pwm.duty_applied,
-    .flags = (uint16_t)(channel << 8),
+    .flags = (uint16_t)(channel << 8) | capture_flags,
     .dropped = dropped,
     .errors = errors,
   };
@@ -132,7 +162,21 @@ static void enqueue(bool final, bool restore_failed) {
     dropped++;
     return;
   }
-  queue[head] = sample;
+  queue[head] = (queued_record_t){.sample = sample};
+  head = (head + 1U) % QUEUE_SIZE;
+  count++;
+}
+
+void measure_io_log_mppt(const mppt_status_t *status) {
+  if (!status || state != IO_ACQUIRE || closing || failed) return;
+  const uint32_t seq = diagnostic_sequence++;
+  // Leave two queue slots for acquisition/final records; logging never blocks control.
+  if (count >= QUEUE_SIZE - 2U) {
+    diagnostic_dropped++;
+    return;
+  }
+  queue[head] = (queued_record_t){.diagnostic = true,
+    .mppt = {.status = *status, .sequence = seq, .time_us = clock_us(), .dropped = diagnostic_dropped}};
   head = (head + 1U) % QUEUE_SIZE;
   count++;
 }
@@ -197,7 +241,9 @@ bool measure_io_begin(uint32_t selected_channel) {
   last_cycles = DWT->CYCCNT;
   elapsed_cycles = 0U;
   closing = failed = sampled = final_queued = tx_active = routes_i2c = false;
+  capture_flags = 0U;
   sequence = dropped = errors = 0U;
+  diagnostic_sequence = diagnostic_dropped = 0U;
   head = tail = count = step = retries = 0U;
   xfer = XFER_IDLE;
   phase_ms = HAL_GetTick();
@@ -206,6 +252,11 @@ bool measure_io_begin(uint32_t selected_channel) {
 }
 
 void measure_io_end(void) { closing = true; }
+void measure_io_set_flags(uint16_t flags) {
+  capture_flags = flags & (MEASURE_IV_SWEEP | MEASURE_IV_DESCENDING | MEASURE_IV_COMPLETE |
+                           MEASURE_IV_VOLTAGE | MEASURE_IV_LIMITED | MEASURE_IV_CURRENT_RAMP |
+                           MEASURE_IV_DUTY_RAMP | MEASURE_IV_RETURN_RAMP);
+}
 bool measure_io_owned(void) { return state != IO_IDLE; }
 bool measure_io_routes_i2c(void) { return routes_i2c; }
 bool measure_io_ready(void) { return state == IO_ACQUIRE && sampled && !closing; }

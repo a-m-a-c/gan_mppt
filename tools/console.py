@@ -32,7 +32,52 @@ OPCODES = {
     "ch5mppt": 0x0B,
     "auto": 0x0C,
     "measure": 0x0D,
+    "measure_iv_sweep": 0x0E,
+    "manual_duty": 0x0F,
+    "measure_start": 0x11,
 }
+
+MANUAL_DUTY_SET_OPCODE = 0x10
+MANUAL_DUTY_MAX = 850
+# Optional status packet; the existing ordered telemetry set stays unchanged.
+STATUS_STREAM = {0xB0: ("manual_duty_target", 2, False),
+                 0xB1: ("manual_duty_fault", 8, False)}
+
+# Codes and value units: mode_manual_duty.h. Values are frozen before shutdown.
+MANUAL_FAULTS = (
+    ("None", ""), ("Hardware overvoltage", ""),
+    ("Hardware overcurrent, channel A", ""), ("Hardware fault (other/pending)", ""),
+    ("Battery bus below 35 V", "mV"), ("Battery bus at/above 50 V", "mV"),
+    ("Invalid INA telemetry", ""), ("INA telemetry older than 120 ms", "ms"),
+    ("Nonfinite INA telemetry", ""), ("Input below 10 V", "mV"),
+    ("Input at/above 35 V", "mV"), ("Input reverse current at/below -10 A", "mA"),
+    ("Input current at/above 9.5 A", "mA"), ("Output reverse current at/below -10 A", "mA"),
+    ("Output current at/above 8 A", "mA"), ("Output outside 0 to below 50 V", "mV"),
+    ("Output at/above battery bus + 1 V", "mV"), ("PWM stopped unexpectedly", "state"),
+    ("PWM duty mismatch", "duty"), ("PWM driver rejected command", "duty"),
+    ("Startup current exceeds 0.5 A", "mA"), ("Startup bus headroom below 2 V", "mV"),
+)
+
+
+def decode_manual_fault(raw: int) -> dict | None:
+    code, duty = raw & 0xFFFF, (raw >> 16) & 0xFFFF
+    if not code:
+        return None
+    value = (raw >> 32) & 0xFFFFFFFF
+    if value & 0x80000000:
+        value -= 0x100000000
+    label, unit = MANUAL_FAULTS[code] if code < len(MANUAL_FAULTS) else (f"Unknown fault {code}", "")
+    if code == 17 and value == 3:
+        label = "PWM entered FAULTED state; hardware cause was not captured"
+    reading = f"; reading {value / 1000:.3f} {unit[1:]}" if unit in ("mA", "mV") else f"; reading {value} {unit}" if unit else ""
+    return {"code": code, "duty": duty, "value": value, "unit": unit,
+            "message": f"{label} at duty {duty} ({duty / 10:.1f}%){reading}"}
+
+
+def manual_duty_payload(value: int) -> bytes:
+    if type(value) is not int or not 0 <= value <= MANUAL_DUTY_MAX:
+        raise ValueError(f"duty must be an integer from 0 to {MANUAL_DUTY_MAX} (0 to 85%)")
+    return value.to_bytes(2, "little")
 
 
 MAX_PAYLOAD = 8
@@ -81,6 +126,8 @@ class StreamSet:
         self.pending = {}
 
     def feed(self, name: str, value: int | None) -> dict | None:
+        if name in ("manual_duty_target", "manual_duty_fault"):
+            return None
         if name == STREAM_FIRST:
             self.pending = {}
         index = len(self.pending)
@@ -114,7 +161,7 @@ class StreamParser:
             if len(self.buf) < 2:
                 return out
             ident, size = self.buf[0], self.buf[1]
-            known = STREAM.get(ident)
+            known = STREAM.get(ident) or STATUS_STREAM.get(ident)
             if known is None or known[1] != size:
                 del self.buf[0]
                 self.resyncs += 1
@@ -207,7 +254,8 @@ def pick_port() -> str | None:
 HELP = """commands
   reset | clearfault | stop                        send a system command
   auto | chmppt | ch5mppt | dualmppt | ivsweep        run a mode
-  measure                                         run measurement capture (use measure.py)
+  measure                                         capture with PWM held off (use measure.py)
+  measure_start                                   release measurement startup after source is ready
   bypass_on | bypass_off                          control the diode bypass
   raw <op-hex> [byte-hex ...]                      send an arbitrary frame
   watch                                            toggle telemetry printing

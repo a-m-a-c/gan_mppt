@@ -38,10 +38,49 @@
       "problemMatcher": []
     },
     {
-      // Bound to Ctrl+Shift+B via the "isDefault" build task: builds then
-      // flashes, without starting a debug session.
-      "label": "Build & Flash",
+      "label": "Build & Flash Debug",
       "dependsOn": ["CMake: build", "Flash (ST-LINK)"],
+      "dependsOrder": "sequence",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "type": "process",
+      "label": "CMake: configure Release",
+      "command": "C:/ST/STM32CubeCLT_1.22.0/CMake/bin/cmake.exe",
+      "args": ["--preset", "Release"],
+      "options": {
+        "cwd": "${workspaceFolder}/firmware"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "type": "process",
+      "label": "CMake: build Release",
+      "command": "C:/ST/STM32CubeCLT_1.22.0/CMake/bin/cmake.exe",
+      "args": ["--build", "--preset", "Release"],
+      "options": {
+        "cwd": "${workspaceFolder}/firmware"
+      },
+      "dependsOn": ["CMake: configure Release"],
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "type": "process",
+      "label": "Flash Release (ST-LINK)",
+      "command": "C:/ST/STM32CubeCLT_1.22.0/STM32CubeProgrammer/bin/STM32_Programmer_CLI.exe",
+      "args": [
+        "-c", "port=SWD",
+        "-w", "${workspaceFolder}/firmware/build/Release/gan_mppt_firmware.elf",
+        "-v",
+        "-rst"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build & Flash Release",
+      "dependsOn": ["CMake: build Release", "Flash Release (ST-LINK)"],
       "dependsOrder": "sequence",
       "group": {
         "kind": "build",

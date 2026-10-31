@@ -20,6 +20,8 @@ static bool pending_write, pending;
 static bool fail_data, fail_config, fail_restore, stall_uart;
 static unsigned old_transfer, old_completed, stop_count, restart_count, stream_count;
 static unsigned sample_packets, final_packets;
+static unsigned diagnostic_packets;
+static uint8_t last_diagnostic[46];
 static uint16_t final_flags;
 
 uint32_t HAL_GetTick(void) { return tick_us / 1000U; }
@@ -59,7 +61,14 @@ int HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *h, uint16_t a, uint16_t r,
   (void)h; (void)s; return start_transfer(a, r, p, n, false);
 }
 int HAL_UART_Transmit_IT(UART_HandleTypeDef *h, uint8_t *p, uint16_t n) {
-  assert(h->gState == 0 && n == 46 && memcmp(p, "MPM1", 4) == 0);
+  assert(h->gState == 0 && n == 46);
+  if (memcmp(p, "MPD1", 4) == 0) {
+    diagnostic_packets++;
+    memcpy(last_diagnostic,p,46);
+    h->gState=1;
+    return HAL_OK;
+  }
+  assert(memcmp(p, "MPM1", 4) == 0);
   uint16_t flags = p[34] | ((uint16_t)p[35] << 8);
   if (flags & MEASURE_VALID) sample_packets++;
   if (flags & MEASURE_END) { final_packets++; final_flags = flags; }
@@ -111,6 +120,7 @@ static void setup(void) {
   pending = fail_data = fail_config = fail_restore = stall_uart = false;
   old_transfer = old_completed = stop_count = restart_count = stream_count = 0U;
   sample_packets = final_packets = final_flags = 0U;
+  diagnostic_packets=0;
   hi2c1.State = huart5.gState = 0;
   sys.state = SYSTEM_STATE_ACTIVE;
   for (unsigned i = 0; i < 2; i++) {
@@ -149,8 +159,40 @@ int main(void) {
   assert(old_completed == 1);
   for (unsigned i = 0; i < 100; i++) pump();
   assert(sample_packets > 1 && channel_a.telem.valid);
+  const mppt_status_t diagnostic = {.target_mv=23900,.error_mv=-80,.power_w=21.025f,
+    .age_ms=120,.decisions=12,.window_samples=31,.flags=MPPT_UPDATED|MPPT_POWER_VALID|MPPT_SETTLED,
+    .compared_target_mv=24000};
+  measure_io_log_mppt(&diagnostic);
+  for(unsigned i=0;i<10;i++) pump();
+  assert(diagnostic_packets==1 && diagnostic_sequence==1);
+  assert(last_diagnostic[12]==(23900 & 255) && last_diagnostic[16]==(uint8_t)-80);
+  assert(last_diagnostic[24]==120 && last_diagnostic[28]==12 && last_diagnostic[32]==31);
+  assert(last_diagnostic[34]==7 && last_diagnostic[36]==(24000 & 255));
+  assert(crc16(last_diagnostic,44)==(uint16_t)(last_diagnostic[44]|(last_diagnostic[45]<<8)));
+  // Diagnostic congestion leaves two slots available, without counting raw-data drops.
+  const uint32_t raw_drops=dropped;
+  for(unsigned i=0;i<QUEUE_SIZE+3;i++) measure_io_log_mppt(&diagnostic);
+  assert(count==QUEUE_SIZE-2 && diagnostic_dropped>0 && dropped==raw_drops);
+  for(unsigned i=0;i<30;i++) pump();
+  measure_io_end();
+  const uint32_t diag_sequence_at_stop=diagnostic_sequence;
+  measure_io_log_mppt(&diagnostic);
+  assert(diagnostic_sequence==diag_sequence_at_stop);
+  finish();
+
+  setup();
+  until_ready();
+  measure_io_set_flags(MEASURE_IV_SWEEP | MEASURE_IV_DUTY_RAMP | MEASURE_IV_RETURN_RAMP |
+                       MEASURE_IV_DESCENDING | MEASURE_IV_COMPLETE);
   measure_io_end();
   finish();
+  assert(final_flags == (MEASURE_END | MEASURE_IV_SWEEP | MEASURE_IV_DUTY_RAMP | MEASURE_IV_RETURN_RAMP |
+                         MEASURE_IV_DESCENDING | MEASURE_IV_COMPLETE));
+  setup();
+  until_ready();
+  measure_io_end();
+  finish();
+  assert(final_flags == MEASURE_END);
 
   setup();
   fail_config = true;

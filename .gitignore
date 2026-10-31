@@ -58,8 +58,8 @@ __pycache__/
 .venv/
 .uv-cache/
 
-# Bench capture output (tools/plotter.py, tools/gui)
-captures/
+# Captures are versioned; large measurement files use Git LFS (.gitattributes).
+# Ad-hoc stream output remains local.
 stream_plot.csv
 stream_plot.svg
 stream_iv.svg

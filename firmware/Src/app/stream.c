@@ -3,13 +3,14 @@
 #include "system.h"
 #include "channel.h"
 #include "serial.h"
+#include "mode_manual_duty.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
 
-// 146 bytes * 10 bits / 921600 baud = 1.59 ms per set; 5 ms leaves headroom.
+// 160 bytes * 10 bits / 921600 baud = 1.74 ms per set; 5 ms leaves headroom.
 #define STREAM_PERIOD_MS 5U
-#define STREAM_PACKET_COUNT 26U
+#define STREAM_PACKET_COUNT 28U
 
 // [id:u8][size:u8][data:little endian]. Columns: vin, iin, vout, iout, duty.
 static const uint8_t channel_ids[CHANNEL_COUNT][5] = {
@@ -47,6 +48,19 @@ static uint32_t amps_to_ma(float a, bool valid) {
 
 static bool send_packet(uint8_t index) {
   uint8_t payload[4];
+  if (index == 27U) {
+    const manual_fault_t *fault = mode_manual_duty_fault();
+    uint8_t status[8];
+    put_u32(status, (uint32_t)fault->code | ((uint32_t)fault->duty << 16));
+    put_u32(status + 4, (uint32_t)fault->value);
+    return serial_send(0xB1U, status, 8U);
+  }
+  if (index == 26U) {
+    const uint16_t target = mode_manual_duty_target();
+    payload[0] = (uint8_t)target;
+    payload[1] = (uint8_t)(target >> 8);
+    return serial_send(0xB0U, payload, 2U);
+  }
   if (index == 0U) {
     put_u32(payload, vbus_mv);
     return serial_send(0x60U, payload, 4U);

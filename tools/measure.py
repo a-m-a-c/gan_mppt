@@ -14,7 +14,9 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import struct
+from threading import Event
 import time
+from typing import Callable
 
 import serial
 import console
@@ -22,7 +24,20 @@ import console
 # firmware/Src/drivers/measure_io.c; little endian, CRC-16/CCITT-FALSE.
 MAGIC = b"MPM1"
 RECORD = struct.Struct("<4sIIIiiiiHHIIH")
+DIAGNOSTIC_MAGIC = b"MPD1"
+DIAGNOSTIC_RECORD = struct.Struct("<4sIIIiiIIHHIIH")
+DIAGNOSTIC_FIELDS = ("sequence", "time_us", "target_mv", "error_mv", "power_mw",
+                     "age_ms", "decisions", "window_samples", "flags", "compared_target_mv", "dropped")
+DIAGNOSTIC_CSV_FIELDS = ("t_s", "t_host_s", *DIAGNOSTIC_FIELDS, "channel", "updated",
+                         "power_valid", "settled", "pi_tracking", "direction", "sequence_gap")
 VALID, SWITCHING, FAULT, END, RESTORE_FAILED = 1, 2, 4, 8, 16
+IV_SWEEP, IV_DESCENDING, IV_COMPLETE = 32, 64, 128
+# Bits 6/7 have separate meanings when IV_SWEEP is clear.
+START_GATED, START_ACCEPTED = 64, 128
+IV_VOLTAGE, IV_LIMITED = 2048, 4096
+IV_CURRENT_RAMP = 8192
+IV_DUTY_RAMP = 16384
+IV_RETURN_RAMP = 32768
 FIELDS = ("sequence", "time_us", "span_us", "vin_mv", "iin_ma", "vout_mv",
           "iout_ma", "duty", "flags", "dropped", "errors")
 CSV_FIELDS = ("t_s", "t_host_s", *FIELDS, "channel", "valid", "switching",
@@ -39,7 +54,8 @@ class Parser:
         self.buffer.extend(data)
         result = []
         while len(self.buffer) >= len(MAGIC):
-            index = self.buffer.find(MAGIC)
+            indices = [self.buffer.find(magic) for magic in (MAGIC, DIAGNOSTIC_MAGIC)]
+            index = min((i for i in indices if i >= 0), default=-1)
             if index < 0:
                 discard = len(self.buffer) - len(MAGIC) + 1
                 self.discarded += discard
@@ -55,8 +71,12 @@ class Parser:
                 self.discarded += 1
                 del self.buffer[0]
                 continue
-            values = RECORD.unpack(packet)
-            result.append(dict(zip(FIELDS, values[1:-1])))
+            if packet[:4] == DIAGNOSTIC_MAGIC:
+                values = DIAGNOSTIC_RECORD.unpack(packet)
+                result.append(dict(zip(DIAGNOSTIC_FIELDS, values[1:-1]), _diagnostic=True))
+            else:
+                values = RECORD.unpack(packet)
+                result.append(dict(zip(FIELDS, values[1:-1])))
             del self.buffer[:RECORD.size]
         return result
 
@@ -67,7 +87,7 @@ class Timeline:
         self.previous_sequence: int | None = None
         self.elapsed_us = 0
 
-    def row(self, sample: dict, host_time: float) -> dict:
+    def stamp(self, sample: dict, host_time: float) -> dict:
         tick = sample["time_us"]
         seq = sample["sequence"]
         gap = seq if self.previous_sequence is None else (seq - self.previous_sequence - 1) & 0xFFFFFFFF
@@ -79,48 +99,86 @@ class Timeline:
                 raise ValueError("MCU timestamp moved backwards; possible reset/new session")
             self.elapsed_us += delta
         self.previous_time, self.previous_sequence = tick, seq
+        return {"t_s": self.elapsed_us / 1_000_000, "t_host_s": host_time, "sequence_gap": gap}
+
+    def row(self, sample: dict, host_time: float) -> dict:
+        stamp = self.stamp(sample, host_time)
         flags = sample["flags"]
-        result = {"t_s": self.elapsed_us / 1_000_000, "t_host_s": host_time,
+        result = {**stamp,
                   **sample, "channel": "ABCDE"[(flags >> 8) & 7] if ((flags >> 8) & 7) < 5 else "?",
                   "valid": bool(flags & VALID), "switching": bool(flags & SWITCHING),
                   "fault": bool(flags & FAULT), "end": bool(flags & END),
-                  "restore_failed": bool(flags & RESTORE_FAILED), "sequence_gap": gap}
+                  "restore_failed": bool(flags & RESTORE_FAILED)}
         if not flags & VALID:
             for field in ("vin_mv", "iin_ma", "vout_mv", "iout_ma"):
                 result[field] = ""
         return result
 
 
-def record(port: str, seconds: float, output: Path) -> dict:
+def record(port: str, seconds: float, output: Path, *, command: str = "measure",
+           required_flags: int = 0, stop_event: Event | None = None,
+           on_started: Callable[[float], None] | None = None,
+           on_sample: Callable[[dict], None] | None = None, make_plots: bool = True,
+           start_event: Event | None = None) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     raw_path = output.with_suffix(".bin")
     meta_path = output.with_suffix(".json")
-    if any(path.exists() for path in (output, raw_path, meta_path, output.with_suffix(".svg"))):
+    diagnostic_path = output.with_name(f"{output.stem}_mppt.csv")
+    if any(path.exists() for path in (output, raw_path, meta_path, diagnostic_path, output.with_suffix(".svg"),
+                                       output.with_name(f"{output.stem}_dots.svg"))):
         raise FileExistsError("Capture paths already exist; choose another --output")
     parser, timeline = Parser(), Timeline()
+    diagnostic_timeline = Timeline()
     summary = {"port": port, "baud": console.BAUD, "protocol": "MPM1",
+               "command": command,
                "started_utc": datetime.now(timezone.utc).isoformat(),
                "requested_seconds": seconds, "samples": 0, "sequence_gaps": 0,
-               "end_received": False, "fault": False, "restore_failed": False}
+               "end_received": False, "fault": False, "restore_failed": False,
+               "mppt_records": 0, "mppt_sequence_gaps": 0, "mppt_firmware_dropped": 0}
     interrupted = False
     try:
         with serial.Serial(port, console.BAUD, timeout=0.05, write_timeout=1.0) as link, \
-                output.open("x", newline="", encoding="utf-8") as csv_file, raw_path.open("xb") as raw_file:
+                output.open("x", newline="", encoding="utf-8") as csv_file, raw_path.open("xb") as raw_file, \
+                diagnostic_path.open("x", newline="", encoding="utf-8") as diagnostic_file:
             writer = csv.DictWriter(csv_file, CSV_FIELDS)
             writer.writeheader()
+            diagnostic_writer = csv.DictWriter(diagnostic_file, DIAGNOSTIC_CSV_FIELDS)
+            diagnostic_writer.writeheader()
 
             def receive() -> None:
                 data = link.read(max(1, min(link.in_waiting, 65536)))
                 raw_file.write(data)
                 host_time = time.monotonic() - started
                 for sample in parser.feed(data):
+                    if sample.pop("_diagnostic", False):
+                        flags = sample["flags"]
+                        stamp = diagnostic_timeline.stamp(sample, host_time)
+                        row = {**stamp, **sample,
+                               "channel": "ABCDE"[(flags >> 8) & 7] if ((flags >> 8) & 7) < 5 else "?",
+                               "updated": bool(flags & 1), "power_valid": bool(flags & 2),
+                               "settled": bool(flags & 4), "pi_tracking": bool(flags & 8),
+                               "direction": 1 if flags & 16 else -1}
+                        if not row["power_valid"]:
+                            row["power_mw"] = ""
+                            row["compared_target_mv"] = ""
+                        diagnostic_writer.writerow(row)
+                        summary["mppt_records"] += 1
+                        summary["mppt_sequence_gaps"] += row["sequence_gap"]
+                        summary["mppt_firmware_dropped"] = sample["dropped"]
+                        continue
+                    if sample["flags"] & required_flags != required_flags:
+                        raise ValueError("Unexpected measurement mode in received record")
                     row = timeline.row(sample, host_time)
                     writer.writerow(row)
+                    if on_sample is not None:
+                        on_sample(row)
                     summary["samples"] += int(row["valid"])
                     summary["sequence_gaps"] += row["sequence_gap"]
                     summary["end_received"] |= row["end"]
                     summary["fault"] |= row["fault"]
                     summary["restore_failed"] |= row["restore_failed"]
+                    if row["end"]:
+                        summary["final_flags"] = sample["flags"]
                     summary["firmware_dropped"] = sample["dropped"]
                     summary["firmware_errors"] = sample["errors"]
                     summary["last_mcu_time_s"] = row["t_s"]
@@ -140,12 +198,21 @@ def record(port: str, seconds: float, output: Path) -> dict:
                     link.read(max(1, min(link.in_waiting, 65536)))
                 link.reset_input_buffer()
                 started = time.monotonic()
-                link.write(console.encode(console.OPCODES["measure"]))
-                while time.monotonic() - started < seconds:
+                summary["host_origin_monotonic_s"] = started
+                summary["host_origin_utc"] = datetime.now(timezone.utc).isoformat()
+                link.write(console.encode(console.OPCODES[command]))
+                if on_started is not None:
+                    on_started(started)
+                while time.monotonic() - started < seconds and not (stop_event and stop_event.is_set()):
                     receive()
                     elapsed = time.monotonic() - started
                     if summary["end_received"]:
                         break
+                    if (command == "measure" and summary["samples"] and "start_command_s" not in summary
+                            and not summary["fault"] and not (stop_event and stop_event.is_set())
+                            and (start_event is None or start_event.is_set())):
+                        link.write(console.encode(console.OPCODES["measure_start"]))
+                        summary["start_command_s"] = time.monotonic() - started
                     if elapsed - summary.get("last_host_time_s", 0.0) > 3.0:
                         raise TimeoutError("No measurement records for 3 s; mode may have been refused")
             except KeyboardInterrupt:
@@ -157,6 +224,7 @@ def record(port: str, seconds: float, output: Path) -> dict:
                     while not summary["end_received"] and time.monotonic() < deadline:
                         receive()
                 csv_file.flush()
+                diagnostic_file.flush()
     except Exception as exc:
         summary["error"] = str(exc)
         raise
@@ -164,7 +232,7 @@ def record(port: str, seconds: float, output: Path) -> dict:
         summary.update(crc_errors=parser.crc_errors, discarded_bytes=parser.discarded,
                        interrupted=interrupted)
         meta_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-        if output.exists():
+        if output.exists() and make_plots:
             try:
                 plot_capture(output)
             except Exception as exc:
@@ -203,6 +271,10 @@ def plot_capture(csv_path: Path) -> Path:
             status = "fault / incomplete"
         elif summary.get("interrupted"):
             status = "interrupted"
+        elif summary.get("final_flags", 0) & IV_LIMITED:
+            status = "sweep limited / partial"
+        elif summary.get("command") == "measure_iv_sweep" and not summary.get("final_flags", 0) & IV_COMPLETE:
+            status = "incomplete sweep"
         channels = ", ".join(sorted({r["channel"] for r in rows if r["valid"] == "True"}))
         fig.suptitle(f"Measurement capture — channel {channels or '?'} — {status}\n{csv_path.parent.name}")
         for ax, fields, ylabel in zip(axes,
@@ -225,6 +297,15 @@ def plot_capture(csv_path: Path) -> Path:
                           f"{summary.get('sequence_gaps', 0)} missing records", fontsize=10, loc="left")
         svg_path = csv_path.with_suffix(".svg")
         fig.savefig(svg_path, format="svg")
+        for ax in axes:
+            for line in ax.get_lines():
+                line.set_linestyle("None")
+                line.set_drawstyle("default")
+                line.set_marker("o")
+                line.set_markersize(1.8)
+                line.set_markeredgewidth(0)
+            ax.legend(loc="upper right", ncols=len(ax.get_lines()))
+        fig.savefig(csv_path.with_name(f"{csv_path.stem}_dots.svg"), format="svg")
         return svg_path
     finally:
         plt.close(fig)

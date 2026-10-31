@@ -1,0 +1,202 @@
+{
+  "settled_points": 11173,
+  "usable_reference_points": 16,
+  "sweeps": [
+    {
+      "sweep_index": 1,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 8,
+        "crc_errors": 1,
+        "firmware_dropped": 0,
+        "discarded_bytes": 73
+      },
+      "excluded_duty_visits": 2
+    },
+    {
+      "sweep_index": 2,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 23
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 3,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 28,
+        "crc_errors": 7,
+        "firmware_dropped": 0,
+        "discarded_bytes": 426
+      },
+      "excluded_duty_visits": 9
+    },
+    {
+      "sweep_index": 4,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 14,
+        "crc_errors": 4,
+        "firmware_dropped": 0,
+        "discarded_bytes": 153
+      },
+      "excluded_duty_visits": 5
+    },
+    {
+      "sweep_index": 5,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 68,
+        "crc_errors": 11,
+        "firmware_dropped": 0,
+        "discarded_bytes": 385
+      },
+      "excluded_duty_visits": 13
+    },
+    {
+      "sweep_index": 6,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 15,
+        "crc_errors": 4,
+        "firmware_dropped": 0,
+        "discarded_bytes": 130
+      },
+      "excluded_duty_visits": 4
+    },
+    {
+      "sweep_index": 7,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 10,
+        "crc_errors": 1,
+        "firmware_dropped": 0,
+        "discarded_bytes": 91
+      },
+      "excluded_duty_visits": 2
+    },
+    {
+      "sweep_index": 8,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 5,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 13
+      },
+      "excluded_duty_visits": 1
+    },
+    {
+      "sweep_index": 9,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 34,
+        "crc_errors": 8,
+        "firmware_dropped": 0,
+        "discarded_bytes": 272
+      },
+      "excluded_duty_visits": 8
+    },
+    {
+      "sweep_index": 10,
+      "complete": true,
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 11,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 12
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 12,
+      "complete": true,
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 13,
+      "complete": true,
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 14,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 15,
+        "crc_errors": 1,
+        "firmware_dropped": 0,
+        "discarded_bytes": 39
+      },
+      "excluded_duty_visits": 1
+    },
+    {
+      "sweep_index": 15,
+      "complete": true,
+      "data_quality": {
+        "status": "warning",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 28
+      },
+      "excluded_duty_visits": 0
+    },
+    {
+      "sweep_index": 16,
+      "complete": true,
+      "data_quality": {
+        "status": "clean",
+        "sequence_gaps": 0,
+        "crc_errors": 0,
+        "firmware_dropped": 0,
+        "discarded_bytes": 0
+      },
+      "excluded_duty_visits": 0
+    }
+  ],
+  "trajectory": "captures\\20261030-203834-994565_measure_mppt_profile\\measure.csv",
+  "averaging": "Exclude whole duty visits bordering gaps; discard first 20 ms; require 40 ms span and 10 retained samples; mean(V*I).",
+  "qualification": "Bracketed measured maxima, not calibrated ground truth. Check temperature drift, settling and repeatability.",
+  "timebase": "Raw MCU t_s and host t_host_s restart each sweep. Source logs use host monotonic clock; per-sweep JSON stores recorder origin."
+}

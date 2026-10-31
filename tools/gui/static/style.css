@@ -455,3 +455,4 @@ body.plot-expanded { overflow: hidden; }
   .series-card:not(.expanded) { min-height: 65vh; }
   .plot-head { flex-wrap: wrap; }
 }
+.manual-hint { margin: 0; padding: 0 14px 12px; }
