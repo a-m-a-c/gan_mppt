@@ -5,6 +5,7 @@
 #include "mode_measure.h"
 #include "mode_measure_iv_sweep.h"
 #include "mode_manual_duty.h"
+#include "mode_pi_test.h"
 #include "mode_single_ch_iv_sweep.h"
 #include "mode_single_ch_mppt.h"
 #include "mode_single_ch_5_mppt.h"
@@ -18,6 +19,8 @@ mode_request_result_t mode_begin(mode_t mode) {
   stopping = false;
 
   switch (mode) {
+    case MODE_PI_TEST:
+      return mode_pi_test_begin();
     case MODE_MANUAL_DUTY:
       return mode_manual_duty_begin();
     case MODE_AUTO:
@@ -45,6 +48,8 @@ mode_state_t mode_service(bool stop_request) {
   if (stop_request) stopping = true;
 
   switch (active_mode) {
+    case MODE_PI_TEST:
+      return mode_pi_test_service(stopping);
     case MODE_MANUAL_DUTY:
       return mode_manual_duty_service(stopping);
     case MODE_AUTO:

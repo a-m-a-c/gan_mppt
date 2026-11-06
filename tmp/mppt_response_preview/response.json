@@ -1,0 +1,62 @@
+{
+  "complete_capture": true,
+  "reference_file": "tmp\\mppt_response_preview\\ref.csv",
+  "tolerance_pct": 2,
+  "dwell_s": 0.4,
+  "max_gap_s": 0.11,
+  "steady_window_s": 5,
+  "data_quality": {},
+  "timing_note": "Approximate host-command-to-UART-arrival timing, not ADC-synchronised latency. MCU sample timestamps are retained separately in response.csv.",
+  "reference_note": "Separate-run MPP reference; source/temperature drift applies. No interpolation.",
+  "settling_definition": "First continuous in-band dwell of raw valid switching samples; later departures are allowed. Gaps/invalid samples reset the dwell.",
+  "phases": [
+    {
+      "name": "acquisition",
+      "source_current_a": 4.0,
+      "source_command_s": 0.0,
+      "setpoint_verified_s": 0.01,
+      "start_s": 0,
+      "end_s": 2.0,
+      "reference_w": 40.0,
+      "settling_s": 0.5,
+      "status": "settled",
+      "dwell_confirmed_s": 0.9,
+      "tail_samples": 20,
+      "tail_mean_w": 32.5,
+      "tail_pp_w": 30.0,
+      "tail_std_w": 12.99038105676658
+    },
+    {
+      "name": "step_1",
+      "source_current_a": 2.0,
+      "source_command_s": 2.0,
+      "setpoint_verified_s": 2.01,
+      "start_s": 2.0,
+      "end_s": 4.0,
+      "reference_w": 20.0,
+      "settling_s": 0.5,
+      "status": "settled",
+      "dwell_confirmed_s": 3.0,
+      "tail_samples": 20,
+      "tail_mean_w": 17.5,
+      "tail_pp_w": 10.0,
+      "tail_std_w": 4.330127018922194
+    },
+    {
+      "name": "step_2",
+      "source_current_a": 4.0,
+      "source_command_s": 4.0,
+      "setpoint_verified_s": 4.01,
+      "start_s": 4.0,
+      "end_s": 6,
+      "reference_w": 40.0,
+      "settling_s": 0.5,
+      "status": "settled",
+      "dwell_confirmed_s": 4.9,
+      "tail_samples": 20,
+      "tail_mean_w": 32.5,
+      "tail_pp_w": 30.0,
+      "tail_std_w": 12.99038105676658
+    }
+  ]
+}

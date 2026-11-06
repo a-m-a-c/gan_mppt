@@ -1,0 +1,27 @@
+{
+  "identity": "Siglent Technologies,SPS5162X,TEST,3.1.1.8R1",
+  "resource": "USB0::0xF4EC::0x1452::TEST::INSTR",
+  "voltage_limit_v": 35.0,
+  "steps": [
+    {
+      "time_s": 0,
+      "current_a": 5
+    }
+  ],
+  "final_hold_s": 3,
+  "max_lateness_s": 0.5,
+  "limits": {
+    "current_a": 8,
+    "voltage_v": 35
+  },
+  "samples": 1,
+  "complete": true,
+  "output_off_confirmed": true,
+  "timestamp_note": "Host timestamps; sequential supply queries, not synchronized ADC samples.",
+  "started_utc": "2026-10-31T05:49:46.555500+00:00",
+  "profile_start_s": 0.40858419984579086,
+  "shared_capture_clock": true,
+  "output_enabled_s": 0.40860269987024367,
+  "output_off_s": 3.4205972999334335,
+  "finished_utc": "2026-10-31T05:49:49.567528+00:00"
+}

@@ -1,0 +1,2 @@
+scheduled_s,command_start_s,setpoint_verified_s,readback_end_s,lateness_s,requested_current_a,timestamp_utc,voltage_limit_v,current_limit_a,output_enabled,voltage_v,current_a,power_w,mode
+0.40858419984579086,0.40860449988394976,0.408611600054428,0.4086352998856455,2.0300038158893585e-05,5,2026-10-31T05:49:46.555544+00:00,35.0,5.0,True,35.0,2e-05,0.0,CV

@@ -11,7 +11,8 @@ typedef enum {
   MODE_SINGLE_CH_5_MPPT,
   MODE_MEASURE,
   MODE_MEASURE_IV_SWEEP,
-  MODE_MANUAL_DUTY
+  MODE_MANUAL_DUTY,
+  MODE_PI_TEST
 } mode_t;
 
 typedef enum {

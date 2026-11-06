@@ -1,0 +1,44 @@
+{
+  "complete": true,
+  "band_v": 0.1,
+  "dwell_s": 0.1,
+  "data_quality": {
+    "sequence_gaps": 0,
+    "crc_errors": 0,
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0
+  },
+  "definition": "First raw-sample dwell in absolute voltage band; invalid samples or >10 ms gaps reset dwell.",
+  "timing": "MCU acquisition and reference-application timestamps; startup begins at first switching sample.",
+  "phases": [
+    {
+      "target_v": 25.0,
+      "start_mcu_s": 0.413193,
+      "end_mcu_s": 1.420562,
+      "settling_s": 0.0,
+      "overshoot_v": null,
+      "tail_mean_error_v": 0.006802721088433827,
+      "tail_std_v": 0.11644382835798428
+    },
+    {
+      "target_v": 27.0,
+      "start_mcu_s": 1.420562,
+      "end_mcu_s": 2.41661,
+      "settling_s": 0.002706999999999793,
+      "overshoot_v": 0,
+      "tail_mean_error_v": -0.0052910052910064564,
+      "tail_std_v": 0.10273273988861163
+    },
+    {
+      "target_v": 25.0,
+      "start_mcu_s": 2.41661,
+      "end_mcu_s": 3.417153,
+      "settling_s": 0.0025919999999999277,
+      "overshoot_v": 0,
+      "tail_mean_error_v": 0.0,
+      "tail_std_v": 0.0
+    }
+  ]
+}

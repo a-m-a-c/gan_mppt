@@ -1,0 +1,146 @@
+{
+  "folder": "C:\\Users\\angus\\workspace\\gan_mppt_firmware\\captures\\measure_5_redo\\staircase\\20261031-180743-637873_measure_mppt_profile",
+  "complete": true,
+  "started_utc": "2026-10-31T07:07:43.647470+00:00",
+  "port": "COM6",
+  "capture_command": "measure",
+  "supply_identity": "Siglent Technologies,SPS5162X,SPS62ABD7R0750,3.1.1.8R1",
+  "supply_resource": "USB0::0xF4EC::0x1452::SPS62ABD7R0750::INSTR",
+  "pre_seconds": 2.0,
+  "post_seconds": 2.0,
+  "active_samples": 659473,
+  "output_off_confirmed": true,
+  "timebase_note": "profile.csv times and measure.csv t_host_s share the MCU capture-command host monotonic origin. UART arrival and sequential VISA operations are not simultaneous ADC samples; measure.csv t_s is MCU time.",
+  "reference_mpp_path": "Not characterized; trajectory does not establish tracking efficiency.",
+  "start_requested_s": 2.2031360000837594,
+  "start_accepted_s": 2.206066600047052,
+  "first_switching_s": 4.223612,
+  "profile": {
+    "identity": "Siglent Technologies,SPS5162X,SPS62ABD7R0750,3.1.1.8R1",
+    "resource": "USB0::0xF4EC::0x1452::SPS62ABD7R0750::INSTR",
+    "voltage_limit_v": 35.0,
+    "steps": [
+      {
+        "time_s": 0,
+        "current_a": 0.5
+      },
+      {
+        "time_s": 30,
+        "current_a": 1.0
+      },
+      {
+        "time_s": 60,
+        "current_a": 1.5
+      },
+      {
+        "time_s": 90,
+        "current_a": 2.0
+      },
+      {
+        "time_s": 120,
+        "current_a": 2.5
+      },
+      {
+        "time_s": 150,
+        "current_a": 3.0
+      },
+      {
+        "time_s": 180,
+        "current_a": 3.5
+      },
+      {
+        "time_s": 210,
+        "current_a": 4.0
+      },
+      {
+        "time_s": 240,
+        "current_a": 4.5
+      },
+      {
+        "time_s": 270,
+        "current_a": 5.0
+      },
+      {
+        "time_s": 300,
+        "current_a": 5.5
+      },
+      {
+        "time_s": 330,
+        "current_a": 6.0
+      },
+      {
+        "time_s": 360,
+        "current_a": 6.5
+      },
+      {
+        "time_s": 390,
+        "current_a": 7.0
+      },
+      {
+        "time_s": 420,
+        "current_a": 7.5
+      },
+      {
+        "time_s": 450,
+        "current_a": 8.0
+      }
+    ],
+    "final_hold_s": 30,
+    "max_lateness_s": 0.5,
+    "limits": {
+      "current_a": 8.0,
+      "voltage_v": 35.0
+    },
+    "samples": 16,
+    "complete": true,
+    "output_off_confirmed": true,
+    "timestamp_note": "Host timestamps; sequential supply queries, not synchronized ADC samples.",
+    "started_utc": "2026-10-31T07:07:46.281249+00:00",
+    "profile_start_s": 2.1026145999785513,
+    "shared_capture_clock": true,
+    "output_enabled_s": 2.177707300055772,
+    "output_off_s": 482.1370443000924,
+    "finished_utc": "2026-10-31T07:15:46.315702+00:00",
+    "folder": "C:\\Users\\angus\\workspace\\gan_mppt_firmware\\captures\\measure_5_redo\\staircase\\20261031-180743-637873_measure_mppt_profile"
+  },
+  "measurement": {
+    "port": "COM6",
+    "baud": 921600,
+    "protocol": "MPM1",
+    "command": "measure",
+    "started_utc": "2026-10-31T07:07:43.669814+00:00",
+    "requested_seconds": 499.0,
+    "samples": 667865,
+    "sequence_gaps": 14,
+    "end_received": true,
+    "fault": false,
+    "restore_failed": false,
+    "mppt_records": 11948,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0,
+    "host_origin_monotonic_s": 1438330.2859045,
+    "host_origin_utc": "2026-10-31T07:07:44.178659+00:00",
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "last_mcu_time_s": 484.142873,
+    "last_host_time_s": 484.1464464000892,
+    "first_sample_s": 0.002229,
+    "last_sample_s": 484.141165,
+    "max_span_us": 739,
+    "received_rate_hz": 1379.4883045721404,
+    "start_command_s": 2.2042509999591857,
+    "final_flags": 200,
+    "crc_errors": 3,
+    "discarded_bytes": 156,
+    "interrupted": false
+  },
+  "data_quality": {
+    "sequence_gaps": 14,
+    "crc_errors": 3,
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0
+  },
+  "finished_utc": "2026-10-31T07:15:48.343519+00:00"
+}

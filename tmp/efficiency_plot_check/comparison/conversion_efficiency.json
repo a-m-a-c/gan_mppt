@@ -1,0 +1,17 @@
+{
+  "kind": "staircase",
+  "frequency_khz": 600,
+  "frequency_provenance": "User-supplied flashed firmware label; not read back",
+  "method": "5 s windows ending 1 s before each step.",
+  "data_quality": {
+    "sequence_gaps": 14,
+    "crc_errors": 3,
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0
+  },
+  "complete": true,
+  "peak_efficiency_pct": 98.07294775701719,
+  "peak_input_w": 133.95704900246417
+}

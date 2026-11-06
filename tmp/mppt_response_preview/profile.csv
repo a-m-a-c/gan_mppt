@@ -1,0 +1,4 @@
+command_start_s,setpoint_verified_s,requested_current_a
+0,0.01,4
+2,2.01,2
+4,4.01,4

@@ -11,6 +11,7 @@
 
 channel_t channel_a, channel_b, channel_c, channel_d, channel_e;
 system_t sys;
+bool mode_pi_test_set_target(uint16_t mv) { (void)mv; return false; }
 static uint32_t now, last_write;
 static bool fault, bypass, reject_step, reject_start;
 static unsigned starts;

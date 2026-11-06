@@ -35,6 +35,8 @@ OPCODES = {
     "measure_iv_sweep": 0x0E,
     "manual_duty": 0x0F,
     "measure_start": 0x11,
+    "pi_test": 0x12,
+    "pi_target": 0x13,
 }
 
 MANUAL_DUTY_SET_OPCODE = 0x10

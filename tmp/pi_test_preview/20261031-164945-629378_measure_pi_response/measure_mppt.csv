@@ -1,0 +1,4 @@
+t_s,t_host_s,sequence,time_us,target_mv,error_mv,power_mw,age_ms,decisions,window_samples,flags,compared_target_mv,dropped,channel,updated,power_valid,settled,pi_tracking,direction,sequence_gap
+0.004463,0.004517100052908063,0,4463,25000,0,125000,0,1,0,3,25000,0,A,True,True,False,False,-1,0
+1.420562,1.4206190998665988,1,1420562,27000,0,125000,0,2,0,3,27000,0,A,True,True,False,False,-1,0
+2.41661,2.416662500007078,2,2416610,25000,0,125000,0,3,0,3,25000,0,A,True,True,False,False,-1,0

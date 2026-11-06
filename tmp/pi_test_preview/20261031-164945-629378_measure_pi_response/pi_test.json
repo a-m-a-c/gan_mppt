@@ -1,0 +1,35 @@
+{
+  "targets_v": [
+    25,
+    27,
+    25
+  ],
+  "hold_s": 1,
+  "source_current_a": 5,
+  "gains_note": "Firmware defaults Kp=.005 Ki=.1; record flashed build if changed.",
+  "events": [
+    {
+      "index": 0,
+      "target_mv": 25000,
+      "queued_host_s": 0.002307699993252754,
+      "applied_mcu_s": 0.004463,
+      "acknowledgement_host_s": 0.004517100052908063
+    },
+    {
+      "index": 1,
+      "target_mv": 27000,
+      "queued_host_s": 1.4138199998997152,
+      "applied_mcu_s": 1.420562,
+      "acknowledgement_host_s": 1.4206190998665988
+    },
+    {
+      "index": 2,
+      "target_mv": 25000,
+      "queued_host_s": 2.413278399966657,
+      "applied_mcu_s": 2.41661,
+      "acknowledgement_host_s": 2.416662500007078
+    }
+  ],
+  "targets_acknowledged": true,
+  "source_off_requested_host_s": 3.4204351000953466
+}

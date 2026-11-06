@@ -1,0 +1,15 @@
+{
+  "kind": "timescale",
+  "average_samples": 10,
+  "complete": true,
+  "data_quality": {
+    "sequence_gaps": 3,
+    "crc_errors": 2,
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0
+  },
+  "reference": null,
+  "averaging": "Non-overlapping active samples; reset at invalid/sequence/time gaps >10 ms; incomplete groups discarded"
+}

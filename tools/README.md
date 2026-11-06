@@ -34,3 +34,13 @@ dependencies. Add shared dependencies with `uv add --project tools <package>`.
 
 `gen_ntc_table.py` writes to `firmware/Inc/drivers/ntc_table.h` and requires
 `.agents/NCU18XH103F6SRB.csv`, which is not currently included in the repository.
+
+For measurement 24 startup and high/low/high MPPT response capture, see
+[MPPT_RESPONSE.md](MPPT_RESPONSE.md). `measure_mppt_response.py` also supports
+offline analysis and plotting with `--replay`.
+
+For fixed-source-current, PI-only input-voltage steps (25 -> 27 -> 25 V), see
+[PI_RESPONSE.md](PI_RESPONSE.md). This requires the `mode_pi_test` firmware build.
+
+For fixed-source-current, PI-only input-voltage steps (25 -> 27 -> 25 V), see
+[PI_RESPONSE.md](PI_RESPONSE.md). This requires the `mode_pi_test` firmware build.

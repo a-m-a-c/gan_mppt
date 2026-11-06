@@ -10,7 +10,7 @@
 #include <math.h>
 
 #define MEASURE_CHANNEL CHANNEL_A
-#define MEASURE_FREQUENCY_HZ 600000U // 480 MHz HRTIM / 600 kHz = 800 period ticks.
+#define MEASURE_FREQUENCY_HZ 300000U // 480 MHz HRTIM / 300 kHz = 1600 period ticks.
 _Static_assert(MEASURE_FREQUENCY_HZ >= PWM_MIN_FREQUENCY_HZ &&
                MEASURE_FREQUENCY_HZ <= PWM_MAX_FREQUENCY_HZ, "Measurement frequency exceeds PWM limits");
 #define START_DELAY_MS 2000U
@@ -35,8 +35,8 @@ static control_config_t control_cfg = {
 };
 
 static const mppt_config_t mppt_cfg = {
-  .kp = 0.01f,
-  .ki = 0.2f,
+  .kp = 0.002f,
+  .ki = 0.3f,
   .duty_min = 0,
   .duty_max = 700,
   .po_period_ms = 100U,

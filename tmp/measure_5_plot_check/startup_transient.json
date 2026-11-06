@@ -1,0 +1,21 @@
+{
+  "first_switching_mcu_s": 5.20196,
+  "before_s": 0.2,
+  "after_s": 3,
+  "complete": true,
+  "reference": "C:\\Users\\angus\\workspace\\gan_mppt_firmware\\captures\\measure_iv_curves",
+  "reference_mpp": {
+    "vin_v": 26.108009433962266,
+    "iin_a": 7.482509433962264,
+    "pin_w": 195.35342612264154
+  },
+  "data_quality": {
+    "sequence_gaps": 3,
+    "crc_errors": 2,
+    "firmware_dropped": 0,
+    "firmware_errors": 0,
+    "mppt_sequence_gaps": 0,
+    "mppt_firmware_dropped": 0
+  },
+  "average_samples": 10
+}

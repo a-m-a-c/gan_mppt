@@ -19,6 +19,7 @@
 #include "serial.h"
 #include "diode_bypass.h"
 #include "mode_measure.h"
+#include "mode_pi_test.h"
 #include "mode_manual_duty.h"
 #include "mode_measure_iv_sweep.h"
 #include "measure_io.h"
@@ -162,8 +163,9 @@ void app_loop(void) {
   status_service();
   if (measure_io_owned()) {
     if (sys.state != SYSTEM_STATE_ACTIVE ||
-        (sys.mode != MODE_MEASURE && sys.mode != MODE_MEASURE_IV_SWEEP)) {
-      if (sys.mode == MODE_MEASURE_IV_SWEEP) mode_measure_iv_sweep_end();
+        (sys.mode != MODE_MEASURE && sys.mode != MODE_MEASURE_IV_SWEEP && sys.mode != MODE_PI_TEST)) {
+      if (sys.mode == MODE_PI_TEST) mode_pi_test_end();
+      else if (sys.mode == MODE_MEASURE_IV_SWEEP) mode_measure_iv_sweep_end();
       else mode_measure_end();
     }
     measure_io_service();

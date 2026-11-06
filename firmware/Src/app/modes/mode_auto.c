@@ -21,8 +21,8 @@ control_config_t control_cfg = {
 };
 
 static const mppt_config_t mppt_cfg = {
-  .kp = 0.02f,
-  .ki = 0.4f,
+  .kp = 0.002f,
+  .ki = 0.3f,
   .duty_min = 0,
   .duty_max = 700,
   .po_period_ms = 100U,

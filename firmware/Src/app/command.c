@@ -6,6 +6,7 @@
 #include "main.h"
 #include "serial.h"
 #include "mode_manual_duty.h"
+#include "mode_pi_test.h"
 
 #define NUM_COMMAND_SLOTS 14
 
@@ -25,7 +26,9 @@ typedef enum {
   OP_SYSTEM_COMMAND_RUN_MEASURE_IV_SWEEP = 0x0E,
   OP_SYSTEM_COMMAND_RUN_MANUAL_DUTY = 0x0F,
   OP_MANUAL_DUTY_SET = 0x10,
-  OP_SYSTEM_COMMAND_START_MEASURE = 0x11
+  OP_SYSTEM_COMMAND_START_MEASURE = 0x11,
+  OP_RUN_PI_TEST = 0x12,
+  OP_PI_TEST_TARGET = 0x13
 } serial_opcode_t;
 
 static mode_t pending_mode;
@@ -34,6 +37,14 @@ static bool system_command_received_register[NUM_COMMAND_SLOTS];
 
 static void accept_serial_command(transport_frame_t *frame) {
   switch (frame->op) {
+    case OP_RUN_PI_TEST:
+      if (frame->len == 0U && !system_command_received_register[SYSTEM_COMMAND_STOP])
+        pending_mode = MODE_PI_TEST;
+      break;
+    case OP_PI_TEST_TARGET:
+      if (frame->len == 2U && !system_command_received_register[SYSTEM_COMMAND_STOP])
+        (void)mode_pi_test_set_target((uint16_t)frame->data[0] | ((uint16_t)frame->data[1] << 8));
+      break;
     case OP_SYSTEM_COMMAND_START_MEASURE:
       if (frame->len == 0U && !system_command_received_register[SYSTEM_COMMAND_STOP])
         system_command_received_register[SYSTEM_COMMAND_START_MEASURE] = true;

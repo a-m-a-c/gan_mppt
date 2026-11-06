@@ -70,6 +70,7 @@ bool mppt_get_status(uint32_t ch, mppt_status_t *status) {
 }
 void measure_io_log_mppt(const mppt_status_t *status) { assert(status); }
 bool mode_manual_duty_set(uint16_t duty) { (void)duty; return false; }
+bool mode_pi_test_set_target(uint16_t mv) { (void)mv; return false; }
 bool serial_take_next_frame(transport_frame_t *out) {
   if (!pending_frame) return false;
   *out = frame;

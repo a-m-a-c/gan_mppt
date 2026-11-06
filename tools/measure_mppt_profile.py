@@ -66,8 +66,13 @@ def plot_trajectory(path: Path, *, complete: bool) -> dict:
 def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep], *,
             output_dir: Path, voltage_limit_v: float = 35.0, pre_seconds: float = 2.0,
             final_hold_s: float = 5.0, post_seconds: float = 2.0,
-            max_lateness_s: float = 0.5, make_plots: bool = True) -> dict:
+            max_lateness_s: float = 0.5, make_plots: bool = True,
+            capture_command: str = "measure", command_queue=None,
+            on_diagnostic=None, on_measurement_sample=None, startup_ready=None,
+            completion_ready=None) -> dict:
     steps = list(steps)
+    if capture_command not in ("measure", "pi_test"):
+        raise ValueError("Unsupported gated capture command")
     current_profile.validate_profile(steps, voltage_limit_v, supply.max_voltage_v,
                                     supply.max_current_a, final_hold_s, max_lateness_s)
     if not any(step.current_a > 0 for step in steps):
@@ -78,13 +83,15 @@ def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep
     capture_seconds = pre_seconds + steps[-1].time_s + final_hold_s + post_seconds + 15.0
     if capture_seconds > 3600:
         raise ValueError("Combined capture must fit within one hour")
-    folder = Path(output_dir) / f"{datetime.now().astimezone():%Y%m%d-%H%M%S-%f}_measure_mppt_profile"
+    suffix = "measure_pi_response" if capture_command == "pi_test" else "measure_mppt_profile"
+    folder = Path(output_dir) / f"{datetime.now().astimezone():%Y%m%d-%H%M%S-%f}_{suffix}"
     folder.mkdir(parents=True, exist_ok=False)
     print(f"Measurement folder: {folder}", flush=True)
     stop, abort, ready, start = Event(), Event(), Event(), Event()
     uart: dict = {}
     result = {"folder": str(folder), "complete": False, "started_utc": datetime.now(timezone.utc).isoformat(),
-              "port": port, "supply_identity": supply.identity, "supply_resource": supply.resource,
+              "port": port, "capture_command": capture_command,
+              "supply_identity": supply.identity, "supply_resource": supply.resource,
               "pre_seconds": pre_seconds, "post_seconds": post_seconds,
               "active_samples": 0, "output_off_confirmed": False,
               "timebase_note": "profile.csv times and measure.csv t_host_s share the MCU capture-command "
@@ -102,7 +109,8 @@ def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep
         if (row["switching"] or row["flags"] & measure.START_ACCEPTED) and not start.is_set():
             uart.setdefault("error", "Measurement startup released before the first nonzero source setting was verified")
             abort.set()
-        unexpected_mode = row["channel"] != "A" or bool(row["flags"] & measure.IV_SWEEP)
+        unexpected_mode = (row["channel"] != "A" or bool(row["flags"] & measure.IV_SWEEP)
+                           or bool(row["flags"] & measure.PI_TEST) != (capture_command == "pi_test"))
         if row["fault"] or row["restore_failed"] or unexpected_mode or (row["end"] and not stop.is_set()):
             uart.setdefault("error", f"Unexpected MCU record: channel={row['channel']}, flags=0x{row['flags']:04X}")
             abort.set()
@@ -122,12 +130,16 @@ def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep
         elif row["t_host_s"] - uart.get("last_valid_s", 0) > 3.0:
             uart.setdefault("error", "No valid sensor samples for 3 s")
             abort.set()
+        if on_measurement_sample is not None:
+            on_measurement_sample(row)
 
     def record_uart() -> None:
         try:
             uart["summary"] = measure.record(port, capture_seconds, folder / "measure.csv",
                                              stop_event=stop, on_started=on_started,
-                                             on_sample=on_sample, make_plots=False, start_event=start)
+                                             on_sample=on_sample, make_plots=False, start_event=start,
+                                             command=capture_command, command_queue=command_queue,
+                                             on_diagnostic=on_diagnostic)
         except BaseException as error:
             uart["error"] = f"{type(error).__name__}: {error}"
         finally:
@@ -145,11 +157,30 @@ def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep
             start.set()
 
     worker = Thread(target=record_uart, name="measurement-uart", daemon=True)
+
+    def stop_before_source_off() -> None:
+        if completion_ready is not None:
+            deadline = time.monotonic() + 15.0
+            while not completion_ready.is_set():
+                wait(0.01)
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("PI target holds did not complete within the capture margin")
+        result["stop_requested_s"] = time.monotonic() - uart["origin"]
+        stop.set()
+        # Recorder sends STOP and waits up to 1 s for END; allow thread/file cleanup.
+        worker.join(timeout=3.0)
+        summary = uart.get("summary", {})
+        if (worker.is_alive() or "error" in uart or not summary.get("end_received")
+                or summary.get("fault") or summary.get("restore_failed")
+                or summary.get("final_flags", 0) & measure.SWITCHING):
+            raise SupplyError("PWM shutdown was not confirmed by a clean END; switching source off anyway")
+        result["pwm_stop_confirmed_s"] = time.monotonic() - uart["origin"]
+
     try:
         supply.set_output(False)
         worker.start()
         deadline = time.monotonic() + 5.0
-        while not ready.is_set():
+        while not ready.is_set() or (startup_ready is not None and not startup_ready.is_set()):
             wait(0.05)
             if time.monotonic() >= deadline:
                 raise TimeoutError("No valid channel A UART data within 5 s; supply remains off")
@@ -159,10 +190,12 @@ def capture(supply: SPS5162X, port: str, steps: list[current_profile.CurrentStep
         result["profile"] = current_profile.run_current_profile(
             supply, steps, voltage_limit_v=voltage_limit_v, final_hold_s=final_hold_s,
             max_lateness_s=max_lateness_s, capture_folder=folder, clock_origin=uart["origin"],
-            stop_event=abort, make_plots=False, on_setpoint=on_setpoint)
+            stop_event=abort, make_plots=False, on_setpoint=on_setpoint,
+            on_complete=stop_before_source_off if capture_command == "pi_test" else None)
         if not result["profile"]["complete"]:
             raise SupplyError("Supply profile failed; see summary.json")
-        wait(post_seconds)
+        if capture_command != "pi_test":
+            wait(post_seconds)
     except BaseException as error:
         result["error"] = f"{type(error).__name__}: {error}"
         result["interrupted"] = isinstance(error, KeyboardInterrupt)

@@ -14,6 +14,7 @@ enum {
   // Non-IV capture uses bits 6/7 for startup gating; IV retains its existing meanings.
   MEASURE_START_GATED = 64U,
   MEASURE_START_ACCEPTED = 128U,
+  MEASURE_PI_TEST = 2048U, // Non-IV mode identifier; overlaps IV_VOLTAGE only in IV mode.
   MEASURE_IV_DESCENDING = 64U,
   MEASURE_IV_COMPLETE = 128U,
   MEASURE_IV_VOLTAGE = 2048U, // Bits 8-10 remain the channel ID.

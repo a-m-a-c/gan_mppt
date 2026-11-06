@@ -107,7 +107,8 @@ def run_current_profile(supply: SPS5162X, steps: list[CurrentStep], *,
                         final_hold_s: float = 1.0, max_lateness_s: float = 0.5,
                         capture_folder: Path | None = None, clock_origin: float | None = None,
                         stop_event: Event | None = None, make_plots: bool = True,
-                        on_setpoint: Callable[[CurrentStep], None] | None = None) -> dict:
+                        on_setpoint: Callable[[CurrentStep], None] | None = None,
+                        on_complete: Callable[[], None] | None = None) -> dict:
     steps = list(steps)
     voltage = validate_profile(steps, voltage_limit_v, supply.max_voltage_v,
                                supply.max_current_a, final_hold_s, max_lateness_s)
@@ -176,6 +177,8 @@ def run_current_profile(supply: SPS5162X, steps: list[CurrentStep], *,
                 writer.writerow(row); handle.flush()
                 summary["samples"] += 1
             wait_until(origin + steps[-1].time_s + final_hold_s)
+            if on_complete is not None:
+                on_complete()
             summary["complete"] = True
     except BaseException as error:
         summary["error"] = f"{type(error).__name__}: {error}"

@@ -17,6 +17,7 @@ import struct
 from threading import Event
 import time
 from typing import Callable
+from queue import Empty
 
 import serial
 import console
@@ -34,6 +35,7 @@ VALID, SWITCHING, FAULT, END, RESTORE_FAILED = 1, 2, 4, 8, 16
 IV_SWEEP, IV_DESCENDING, IV_COMPLETE = 32, 64, 128
 # Bits 6/7 have separate meanings when IV_SWEEP is clear.
 START_GATED, START_ACCEPTED = 64, 128
+PI_TEST = 2048
 IV_VOLTAGE, IV_LIMITED = 2048, 4096
 IV_CURRENT_RAMP = 8192
 IV_DUTY_RAMP = 16384
@@ -119,7 +121,8 @@ def record(port: str, seconds: float, output: Path, *, command: str = "measure",
            required_flags: int = 0, stop_event: Event | None = None,
            on_started: Callable[[float], None] | None = None,
            on_sample: Callable[[dict], None] | None = None, make_plots: bool = True,
-           start_event: Event | None = None) -> dict:
+           start_event: Event | None = None, command_queue=None,
+           on_diagnostic: Callable[[dict], None] | None = None) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     raw_path = output.with_suffix(".bin")
     meta_path = output.with_suffix(".json")
@@ -162,6 +165,8 @@ def record(port: str, seconds: float, output: Path, *, command: str = "measure",
                             row["power_mw"] = ""
                             row["compared_target_mv"] = ""
                         diagnostic_writer.writerow(row)
+                        if on_diagnostic is not None:
+                            on_diagnostic(row)
                         summary["mppt_records"] += 1
                         summary["mppt_sequence_gaps"] += row["sequence_gap"]
                         summary["mppt_firmware_dropped"] = sample["dropped"]
@@ -208,7 +213,13 @@ def record(port: str, seconds: float, output: Path, *, command: str = "measure",
                     elapsed = time.monotonic() - started
                     if summary["end_received"]:
                         break
-                    if (command == "measure" and summary["samples"] and "start_command_s" not in summary
+                    if command_queue is not None:
+                        try:
+                            while True:
+                                link.write(command_queue.get_nowait())
+                        except Empty:
+                            pass
+                    if (command in ("measure", "pi_test") and summary["samples"] and "start_command_s" not in summary
                             and not summary["fault"] and not (stop_event and stop_event.is_set())
                             and (start_event is None or start_event.is_set())):
                         link.write(console.encode(console.OPCODES["measure_start"]))

@@ -58,7 +58,9 @@ __pycache__/
 .venv/
 .uv-cache/
 
-# Captures are versioned; large measurement files use Git LFS (.gitattributes).
+# Local measurement captures
+/captures/
+
 # Ad-hoc stream output remains local.
 stream_plot.csv
 stream_plot.svg

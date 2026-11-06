@@ -66,6 +66,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Src/app/stream.c
     Src/app/modes/mode_auto.c
     Src/app/modes/mode_measure.c
+    Src/app/modes/mode_pi_test.c
     Src/app/modes/mode_measure_iv_sweep.c
     Src/app/modes/mode_manual_duty.c
     Src/drivers/measure_io.c
